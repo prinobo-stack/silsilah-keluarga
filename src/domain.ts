@@ -5,6 +5,8 @@ export interface Person {
   name: string;
   nickname: string;
   nik?: string;
+  phone?: string;
+  religion?: string;
   address?: string;
   addressMode?: "auto" | "manual";
   sex: Sex;
@@ -229,6 +231,9 @@ export function validateState(s: State): void {
   const txt = (v: unknown, max = 10000) =>
     typeof v === "string" && v.length <= max;
   for (const p of s.persons) {
+    if ((p.phone !== undefined && !txt(p.phone, 40)) ||
+        (p.religion !== undefined && !txt(p.religion, 100)))
+      throw Error("Nomor HP atau agama anggota tidak valid.");
     if (
       p.nik !== undefined &&
       (typeof p.nik !== "string" ||

@@ -96,3 +96,18 @@ test("foto hilang tidak menghasilkan cadangan sukses", async () => {
     /tidak ditemukan/,
   );
 });
+
+test("nomor HP dan agama bertahan dalam cadangan; cadangan lama tetap diterima", async () => {
+  const s = emptyState();
+  const { treeFixture } = await import("./fixtures/tree.ts");
+  s.persons = treeFixture().persons;
+  s.persons[0].phone = "0812 3456 7890";
+  s.persons[0].religion = "Islam";
+  const restored = await inspectBackup(await createBackup(s, async () => ""));
+  assert.equal(restored.state.persons[0].phone, "0812 3456 7890");
+  assert.equal(restored.state.persons[0].religion, "Islam");
+  delete s.persons[0].phone; delete s.persons[0].religion;
+  await inspectBackup(await createBackup(s, async () => ""));
+  s.persons[0].phone = "x".repeat(41);
+  await assert.rejects(createBackup(s, async () => ""), /Nomor HP atau agama/);
+});

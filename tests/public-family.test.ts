@@ -4,7 +4,7 @@ import {publicFamily} from '../server/public-family.ts';
 import {treeFixture} from './fixtures/tree.ts';
 test('pohon publik dibangun dengan whitelist dan tidak memuat bidang privat tambahan',()=>{
  const full=treeFixture();
- for(const p of full.persons)Object.assign(p,{notes:'PRIVATE-NOTE',nik:'PRIVATE-NIK',address:'PRIVATE-ADDRESS',place:'PRIVATE-PLACE',extraSecret:'PRIVATE-EXTRA'});
+ for(const p of full.persons)Object.assign(p,{phone:'PRIVATE-PHONE',religion:'PRIVATE-RELIGION',notes:'PRIVATE-NOTE',nik:'PRIVATE-NIK',address:'PRIVATE-ADDRESS',place:'PRIVATE-PLACE',extraSecret:'PRIVATE-EXTRA'});
  full.unions.forEach(u=>u.notes='PRIVATE-UNION');full.parents.forEach(p=>p.role='PRIVATE-ROLE');
  const safe=publicFamily(full),text=JSON.stringify(safe);
  assert.ok(!text.includes('PRIVATE-'));

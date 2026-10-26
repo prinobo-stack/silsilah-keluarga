@@ -287,6 +287,8 @@ function newPerson(): Person {
     name: "",
     nickname: "",
     nik: "",
+    phone: "",
+    religion: "",
     address: "",
     addressMode: "auto",
     sex: "U",
@@ -384,6 +386,8 @@ function PersonEditor({
         name: p.name.trim(),
         nickname: p.nickname.trim(),
         nik: (p.nik ?? "").trim(),
+        phone: (p.phone ?? "").trim(),
+        religion: (p.religion ?? "").trim(),
         address: p.addressMode === "auto" ? "" : (p.address ?? "").trim(),
         death: p.status === "deceased" ? p.death : "",
         updatedAt: new Date().toISOString(),
@@ -489,6 +493,21 @@ function PersonEditor({
             placeholder="16 angka, boleh dikosongkan"
           />
         </label>
+        <div className="form-grid">
+          <label>
+            Agama
+            <input maxLength={100} value={p.religion ?? ""}
+              onChange={(e) => update("religion", e.target.value)}
+              placeholder="Agama, boleh dikosongkan" />
+          </label>
+          <label>
+            Nomor HP
+            <input type="tel" autoComplete="tel" maxLength={40}
+              value={p.phone ?? ""}
+              onChange={(e) => update("phone", e.target.value)}
+              placeholder="Contoh: 0812 3456 7890" />
+          </label>
+        </div>
         <label>
           Alamat
           <textarea
@@ -1116,6 +1135,22 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
   const pinch = useRef<{distance: number; scale: number; x: number; y: number} | null>(null);
   const gestureMoved = useRef(false);
   const treeRef = useRef<HTMLDivElement>(null);
+  const nameTap = useRef<{id: string; timer: ReturnType<typeof setTimeout>} | null>(null);
+  useEffect(() => () => { if (nameTap.current) clearTimeout(nameTap.current.timer); }, []);
+  function tapTreeName(p: Person) {
+    if (nameTap.current?.id === p.id) {
+      clearTimeout(nameTap.current.timer);
+      nameTap.current = null;
+      if (!readOnly) setModal({type: "person", person: p});
+      else openPerson(p.id);
+      return;
+    }
+    if (nameTap.current) clearTimeout(nameTap.current.timer);
+    nameTap.current = {id: p.id, timer: setTimeout(() => {
+      nameTap.current = null;
+      focusTreePerson(p.id);
+    }, 350)};
+  }
   const drag = useRef<{
     x: number;
     y: number;
@@ -1985,6 +2020,9 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                             <text
                               x="12"
                               y="60"
+                              onClick={(e) => { e.stopPropagation(); tapTreeName(p); }}
+                              onDoubleClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              style={{touchAction: "manipulation", userSelect: "none"}}
                               fill="#203b2e"
                               fontSize="12"
                               fontWeight="600"
@@ -2087,7 +2125,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                 </button>
                 <p className="muted">
                   Gunakan tombol + atau − pada kartu untuk membuka atau menutup
-                  keturunan. Ketuk nama untuk menampilkan jalur leluhur dan
+                  keturunan. Ketuk dua kali nama untuk membuka edit profil. Ketuk sekali untuk menampilkan jalur leluhur dan
                   keturunannya. Gunakan tombol Buka profil fokus untuk melihat
                   profil. Pasangan dan saudara dapat tampil sebagai konteks.
                 </p>
@@ -2266,6 +2304,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   <dt>NIK</dt>
                   <dd>{person.nik || "Belum diisi"}</dd>
                 </div>
+                <div><dt>Agama</dt><dd>{person.religion || "Belum diisi"}</dd></div>
+                <div><dt>Nomor HP</dt><dd>{person.phone || "Belum diisi"}</dd></div>
                 <div>
                   <dt>Alamat</dt>
                   <dd className="preserve">
