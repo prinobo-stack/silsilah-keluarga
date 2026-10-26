@@ -130,7 +130,7 @@ async function sync(forcePull: boolean): Promise<string> {
   const bytes = await createBackup(local.state, async (id) =>
     getMedia(local.state.media.find((m) => m.id === id)!),
   );
-  const sent = await fetch("/api/snapshot", {
+  const sent = await fetch("/api/snapshot?baseRevision=" + encodeURIComponent(String(revision)), {
     method: "PUT",
     credentials: "same-origin",
     headers: {

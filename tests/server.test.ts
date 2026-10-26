@@ -120,9 +120,11 @@ test("server keluarga menegakkan akun publik privasi revisi dan pencabutan akses
             .status,
           403,
         );
-        const sent = await req("snapshot", archive, owner, "PUT", {
-          "If-Match": "0",
-        });
+        for (const path of ["snapshot", "snapshot?baseRevision=", "snapshot?baseRevision=oops"]) {
+          assert.equal((await req(path, archive, owner, "PUT")).status, 400);
+        }
+        assert.equal((await req("snapshot?baseRevision=1", archive, owner, "PUT", {"If-Match":"0"})).status, 400);
+        const sent = await req("snapshot?baseRevision=0", archive, owner, "PUT");
         assert.equal(sent.status, 200);
         assert.equal((await sent.json()).revision, 1);
         assert.equal(

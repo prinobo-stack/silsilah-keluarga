@@ -561,11 +561,18 @@ export async function createFamilyServer(options: {
       }
       if (method === "PUT" && path === "/api/snapshot") {
         const u = (await auth(req, "write"));
-        const base = Number(req.headers["if-match"]);
+        // Some hosting proxies consume conditional HTTP headers. Carry the same
+        // required revision in the URL as a fallback; never assume revision zero.
+        const headerRevision = req.headers["if-match"];
+        const queryRevision = url.searchParams.get("baseRevision");
+        const rawRevision = headerRevision ?? queryRevision;
+        const base = Number(rawRevision);
         if (
+          typeof rawRevision !== "string" ||
+          !/^\d+$/.test(rawRevision) ||
           !Number.isSafeInteger(base) ||
-          base < 0 ||
-          req.headers["if-match"] === undefined
+          (headerRevision !== undefined && queryRevision !== null &&
+            Number(headerRevision) !== Number(queryRevision))
         )
           fail(400, "Revisi awal wajib diisi.");
         const bytes = await body(req, MAX_ZIP);
