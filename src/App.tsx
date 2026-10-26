@@ -1,3 +1,4 @@
+import PhotoCropper from "./PhotoCropper";
 import {
   useEffect,
   useMemo,
@@ -325,12 +326,13 @@ function PersonEditor({
     person ? { ...person } : newPerson(),
   );
   const [media, setMedia] = useState<Media[]>([]);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const update = (key: keyof Person, value: unknown) =>
     setP((v) => ({ ...v, [key]: value }));
   const initialPerson = useRef(p);
-  const changed = JSON.stringify(p) !== JSON.stringify(initialPerson.current);
+  const changed = cropFile !== null || JSON.stringify(p) !== JSON.stringify(initialPerson.current);
   const addressState: State = {
     ...state,
     persons: [...state.persons.filter((v) => v.id !== p.id), p],
@@ -370,14 +372,17 @@ function PersonEditor({
       setMedia((m) => [...m, result.media]);
       onPhoto(result.media.id, result.data);
       update("photoId", result.media.id);
+      setCropFile(null);
     } catch (e) {
       setError((e as Error).message);
+      throw e;
     } finally {
       setBusy(false);
     }
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (cropFile) { setError("Tekan Gunakan foto atau Batal potong sebelum menyimpan."); return; }
     setBusy(true);
     setError("");
     try {
@@ -442,6 +447,7 @@ function PersonEditor({
   return (
     <Dialog title={person ? "Edit anggota" : "Tambah anggota"} close={cancel}>
       <form onSubmit={submit}>
+        {cropFile && <PhotoCropper key={cropFile.name + cropFile.lastModified} file={cropFile} confirm={async (file) => { await photo(file); }} cancel={() => setCropFile(null)} />}
         <div className="photo-input">
           <Avatar
             person={p.name ? p : { ...p, name: "?" }}
@@ -455,7 +461,7 @@ function PersonEditor({
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={(e) => {
-                void photo(e.target.files?.[0]);
+                setCropFile(e.target.files?.[0] ?? null);
                 e.target.value = "";
               }}
               disabled={busy}
@@ -1149,7 +1155,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     nameTap.current = {id: p.id, timer: setTimeout(() => {
       nameTap.current = null;
       focusTreePerson(p.id);
-    }, 350)};
+    }, 500)};
   }
   const drag = useRef<{
     x: number;
@@ -1942,7 +1948,9 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                             role="button"
                             tabIndex={0}
                             aria-label={"Fokus silsilah " + p.name}
-                            onClick={() => focusTreePerson(p.id)}
+                            onClick={(e) => { e.stopPropagation(); tapTreeName(p); }}
+                            onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            style={{touchAction: "manipulation", userSelect: "none"}}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
@@ -2020,9 +2028,6 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                             <text
                               x="12"
                               y="60"
-                              onClick={(e) => { e.stopPropagation(); tapTreeName(p); }}
-                              onDoubleClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                              style={{touchAction: "manipulation", userSelect: "none"}}
                               fill="#203b2e"
                               fontSize="12"
                               fontWeight="600"
