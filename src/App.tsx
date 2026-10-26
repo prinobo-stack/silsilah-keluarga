@@ -1803,43 +1803,6 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             </section>
             {graph?.nodes.length ? (
               <>
-                <div className="branch-actions">
-                  <button
-                    className="secondary"
-                    disabled={direction === "ancestors"}
-                    onClick={() => {
-                      setDepth(0);
-                      setCollapsedBranches(new Set());
-                    }}
-                  >
-                    <Maximize2 size={17} />
-                    Buka semua keturunan
-                  </button>
-                  <button
-                    className="secondary"
-                    disabled={direction === "ancestors"}
-                    onClick={() =>
-                      setCollapsedBranches(
-                        new Set(
-                          direction === "all"
-                            ? people
-                                .filter((p) =>
-                                  state.parents.some(
-                                    (l) => l.parentId === p.id,
-                                  ),
-                                )
-                                .map((p) => p.id)
-                            : selected
-                              ? [selected]
-                              : [],
-                        ),
-                      )
-                    }
-                  >
-                    <Minimize2 size={17} />
-                    Tutup keturunan
-                  </button>
-                </div>
                 <p className="muted" role="status">
                   Menampilkan {graph.nodes.length} dari {graph.totalNodes}{" "}
                   anggota dalam cakupan
@@ -2123,6 +2086,49 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   Ekspor cakupan ini ke PDF
                 </button>
                 <p className="muted">
+                  Gunakan tombol + atau − pada kartu untuk membuka atau menutup
+                  keturunan. Ketuk nama untuk menampilkan jalur leluhur dan
+                  keturunannya. Gunakan tombol Buka profil fokus untuk melihat
+                  profil. Pasangan dan saudara dapat tampil sebagai konteks.
+                </p>
+                <div className="branch-actions">
+                  <button
+                    className="secondary"
+                    disabled={direction === "ancestors"}
+                    onClick={() => {
+                      setDepth(0);
+                      setCollapsedBranches(new Set());
+                    }}
+                  >
+                    <Maximize2 size={17} />
+                    Buka semua keturunan
+                  </button>
+                  <button
+                    className="secondary"
+                    disabled={direction === "ancestors"}
+                    onClick={() =>
+                      setCollapsedBranches(
+                        new Set(
+                          direction === "all"
+                            ? people
+                                .filter((p) =>
+                                  state.parents.some(
+                                    (l) => l.parentId === p.id,
+                                  ),
+                                )
+                                .map((p) => p.id)
+                            : selected
+                              ? [selected]
+                              : [],
+                        ),
+                      )
+                    }
+                  >
+                    <Minimize2 size={17} />
+                    Tutup keturunan
+                  </button>
+                </div>
+                <p className="muted">
                   Kotak hijau dan garis terang tebal: jalur leluhur dan
                   keturunan fokus. Garis redup: hubungan lain.
                 </p>
@@ -2133,12 +2139,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   />{" "}
                   Saudara
                 </p>
-                <p className="muted">
-                  Gunakan tombol + atau − pada kartu untuk membuka atau menutup
-                  keturunan. Ketuk nama untuk menampilkan jalur leluhur dan
-                  keturunannya. Gunakan tombol Buka profil fokus untuk melihat
-                  profil. Pasangan dan saudara dapat tampil sebagai konteks.
-                </p>
+
 
               </>
             ) : (
