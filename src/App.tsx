@@ -1,3 +1,4 @@
+import PhotoViewer from "./PhotoViewer";
 import PhotoCropper from "./PhotoCropper";
 import {
   useEffect,
@@ -327,6 +328,8 @@ function PersonEditor({
   );
   const [media, setMedia] = useState<Media[]>([]);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const cropPanel = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (cropFile) cropPanel.current?.scrollIntoView({block:"start"}); }, [cropFile]);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const update = (key: keyof Person, value: unknown) =>
@@ -447,7 +450,7 @@ function PersonEditor({
   return (
     <Dialog title={person ? "Edit anggota" : "Tambah anggota"} close={cancel}>
       <form onSubmit={submit}>
-        {cropFile && <PhotoCropper key={cropFile.name + cropFile.lastModified} file={cropFile} confirm={async (file) => { await photo(file); }} cancel={() => setCropFile(null)} />}
+        {cropFile && <div ref={cropPanel}><PhotoCropper key={cropFile.name + cropFile.lastModified} file={cropFile} confirm={async (file) => { await photo(file); }} cancel={() => setCropFile(null)} /></div>}
         <div className="photo-input">
           <Avatar
             person={p.name ? p : { ...p, name: "?" }}
@@ -467,6 +470,9 @@ function PersonEditor({
               disabled={busy}
             />
           </label>
+          {p.photoId && photos[p.photoId] && <button type="button" className="secondary" disabled={busy} onClick={() => {
+            void fetch(photos[p.photoId!]).then(r => r.blob()).then(blob => setCropFile(new File([blob], "foto-anggota.jpg", {type:blob.type || "image/jpeg"}))).catch(() => setError("Foto belum dapat dibuka. Pilih ulang dari galeri."));
+          }}>Potong foto</button>}
           {p.photoId && (
             <button
               type="button"
@@ -1098,6 +1104,7 @@ function PinEditor({ close, done }: { close: () => void; done: () => void }) {
   );
 }
 export default function App({ readOnly = false, publicView = false }: { readOnly?: boolean; publicView?: boolean } = {}) {
+  const [viewPhoto, setViewPhoto] = useState<{src:string;name:string}|null>(null);
   const [state, setState] = useState<State | null>(null),
     [page, setPage] = useState<Page>(publicView ? "tree" : "home"),
     [selected, setSelected] = useState<string | null>(null),
@@ -2265,7 +2272,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         {page === "profile" && person && (
           <>
             <section className="card profile-top">
-              <Avatar person={person} photos={photos} size="large" />
+              {person.photoId && photos[person.photoId] ? <button type="button" className="profile-photo-button" aria-label={"Perbesar foto " + person.name} onClick={() => setViewPhoto({src:photos[person.photoId!],name:person.name})}><Avatar person={person} photos={photos} size="large" /></button> : <Avatar person={person} photos={photos} size="large" />}
+              {viewPhoto && <PhotoViewer src={viewPhoto.src} name={viewPhoto.name} close={() => setViewPhoto(null)} />}
               <h2>{person.name}</h2>
               <p>
                 {person.nickname ? person.nickname + " · " : ""}
