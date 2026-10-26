@@ -60,7 +60,7 @@ export default function OnlineGate() {
         try {
           const status = await api("status");
           setSetup(status.setupRequired);
-          if (status.setupRequired) {setGuest(false);setError("Admin belum disiapkan pada server ini. Hubungi pengelola server.");}
+          if (status.setupRequired) {setGuest(false);setMode("setup");setError("");}
         } catch {
           setError(
             "Server belum terhubung. Salinan offline tersedia setelah pernah masuk pada perangkat ini.",
@@ -152,8 +152,13 @@ export default function OnlineGate() {
         <h1>Silsilah Bersama</h1>
         <p>Pohon keluarga, cerita yang saling terhubung.</p>
         <button className="secondary" onClick={() => setGuest(true)}>Lihat pohon tanpa login</button>
-        <h2>Masuk akun keluarga</h2>
+        <h2>{setup ? "Aktifkan akun admin pertama" : "Masuk akun keluarga"}</h2>
         <form onSubmit={submit}>
+          {setup && <>
+            <label>Nama lengkap<input name="name" required maxLength={100} autoComplete="name" /></label>
+            <label>Token aktivasi server<input name="code" type="password" required minLength={32} autoComplete="off" spellCheck={false} /></label>
+            <p className="muted">Masukkan BOOTSTRAP_TOKEN yang disimpan di Netlify. Token hanya digunakan untuk mengaktifkan admin pertama.</p>
+          </>}
           <label>
             Nama akun
             <input
@@ -190,7 +195,7 @@ export default function OnlineGate() {
               ? "Memproses…"
               : mode === "login"
                 ? "Masuk sekarang"
-                : "Buat akun"}
+                : "Aktifkan admin"}
           </button>
         </form>
         <p className="muted">
