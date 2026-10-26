@@ -709,12 +709,17 @@ export async function createFamilyServer(options: {
       else res.end();
     }
   };
-  const server = createServer((req, res) => {
-    db.withRequest(() => handle(req, res), (req.url ?? '').startsWith('/api/')).catch(() => {
+  const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
+    try {
+      await db.withRequest(() => handle(req, res), (req.url ?? '').startsWith('/api/'));
+    } catch {
       if (!res.headersSent) respond(res, 503, {error: 'Database belum dapat dihubungi. Coba lagi.'});
       else res.end();
-    });
-  });
+    }
+  };
+  const server = Object.assign(createServer((req, res) => {
+    void handleRequest(req, res);
+  }), { handleRequest });
   server.requestTimeout = 60000;
   server.headersTimeout = 15000;
   server.on("close", () => db.close());
