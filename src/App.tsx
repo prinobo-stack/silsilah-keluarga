@@ -1,3 +1,4 @@
+import DataChecks from "./DataChecks";
 import {useAppearance, AppearanceSettings} from "./Appearance";
 import FamilySuggestions from "./FamilySuggestions";
 import { suggestionsFor } from "./family-suggestions";
@@ -99,6 +100,7 @@ const titles = {
   profile: "Profil anggota",
   memories: "Album kenangan",
   trash: "Sampah",
+  checks: "Pemeriksaan data",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -2751,9 +2753,11 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "checks" && !publicView && <DataChecks state={state} openPerson={openPerson} />}
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<Users />} title="Pemeriksaan data" text="Tinjau kemungkinan ganda, tanggal, dan hubungan yang belum lengkap" onClick={() => setPage("checks")} /></section>
             <section className="card">
               <h2>Warna anggota yang sudah wafat</h2>
               <p>Warna berlaku pada pohon, daftar anggota, dan profil. Disimpan di browser perangkat ini.</p>
