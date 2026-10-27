@@ -5,7 +5,7 @@ export function prepareReviewedProposal(current:Snapshot,draft:Snapshot,selected
  if(!Array.isArray(selected)||!selected.length||selected.length>1000||new Set(selected).size!==selected.length||selected.some(i=>!Number.isSafeInteger(i)||i<0||i>=changes.length))throw Error('Pilih bagian usulan yang valid.');
  const state=structuredClone(current.state),files={...current.files};
  const sections:Record<string,string>={'Anggota':'persons','Orang tua-anak':'parents','Kakak-adik':'siblings','Pasangan':'unions','Cerita':'memories','Foto':'media','Agenda keluarga':'events'};
- for(const i of selected){const c=changes[i];if(c.section==='Identitas keluarga'){if(c.name==='familyName')state.familyName=c.after as string;else if(c.name==='rootId')state.rootId=c.after as string|null;else throw Error('Identitas usulan tidak dikenal.');continue;}
+ for(const i of selected){const c=changes[i];if(c.section==='Identitas keluarga'){if(c.name==='familyName')state.familyName=c.after as string;else if(c.name==='rootId')state.rootId=c.after as string|null;else if(c.name==='familyProfile')state.familyProfile=structuredClone(c.after) as State['familyProfile'];else throw Error('Identitas usulan tidak dikenal.');continue;}
  const key=sections[c.section];if(!key)throw Error('Bagian usulan tidak dikenal.');const old=c.before as {id:string}|null,row=c.after as {id:string;isiFotoBerubah?:boolean}|null,id=(row??old)!.id;
  const clean=row?structuredClone(row):null;if(clean)delete clean.isiFotoBerubah;
  const record=state as unknown as Record<string,unknown>;record[key]=((record[key]??[]) as {id:string}[]).filter(r=>r.id!==id);if(clean)(record[key] as unknown[]).push(clean);

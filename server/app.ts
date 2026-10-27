@@ -540,6 +540,7 @@ export async function createFamilyServer(options: {
         if (redacted.rootId && !live.has(redacted.rootId))
           redacted.rootId = redacted.persons[0]?.id ?? null;
         const mediaIds = new Set([
+          ...(redacted.familyProfile?.coverPhotoId ? [redacted.familyProfile.coverPhotoId] : []),
           ...redacted.persons.flatMap((p) => (p.photoId ? [p.photoId] : [])),
           ...redacted.memories.flatMap((m) => m.mediaIds),
         ]);
@@ -706,6 +707,7 @@ export async function createFamilyServer(options: {
         if (redacted.rootId && !live.has(redacted.rootId))
           redacted.rootId = redacted.persons[0]?.id ?? null;
         const mediaIds = new Set([
+          ...(redacted.familyProfile?.coverPhotoId ? [redacted.familyProfile.coverPhotoId] : []),
           ...redacted.persons.flatMap((p) => (p.photoId ? [p.photoId] : [])),
           ...redacted.memories.flatMap((m) => m.mediaIds),
         ]);

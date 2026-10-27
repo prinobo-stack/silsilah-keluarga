@@ -97,9 +97,11 @@ export interface Memory {
 export interface FamilyEvent {
   id: string; title: string; date: string; time: string; location: string; notes: string;
 }
+export interface FamilyProfile {history:string; origins:string; ancestors:string; coverPhotoId:string|null;}
 export interface State {
   schemaVersion: 1;
   familyName: string;
+  familyProfile?: FamilyProfile;
   rootId: string | null;
   persons: Person[];
   parents: ParentLink[];
@@ -234,6 +236,10 @@ export function validateState(s: State): void {
   }
   const people = ids(s.persons),
     media = ids(s.media);
+  if(s.familyProfile !== undefined){
+    const p=s.familyProfile;
+    if(!p || typeof p!=="object" || Array.isArray(p) || typeof p.history!=="string" || p.history.length>20000 || typeof p.origins!=="string" || p.origins.length>2000 || typeof p.ancestors!=="string" || p.ancestors.length>10000 || (p.coverPhotoId!==null && !media.has(p.coverPhotoId)))throw Error("Profil keluarga besar tidak valid.");
+  }
   ids(s.parents);
   ids(s.unions);
   ids(s.memories);

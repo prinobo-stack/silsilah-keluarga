@@ -1,3 +1,6 @@
+import FamilyProfile from "./FamilyProfile";
+import FamilyTimeline from "./FamilyTimeline";
+import {searchMembers} from "./member-search";
 import FamilyBook from "./FamilyBook";
 import ProfileShare from "./ProfileShare";
 import {memberFromHash} from "./profile-link";
@@ -115,6 +118,8 @@ const titles = {
   history: "Riwayat perubahan",
   privacy: "Privasi pengunjung",
   book: "Buku keluarga",
+  familyProfile: "Profil keluarga besar",
+  timeline: "Linimasa keluarga",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -1138,6 +1143,9 @@ function PinEditor({ close, done }: { close: () => void; done: () => void }) {
   );
 }
 export default function App({ readOnly = false, publicView = false }: { readOnly?: boolean; publicView?: boolean } = {}) {
+  const [memberSex,setMemberSex] = useState("all");
+  const [memberPlace,setMemberPlace] = useState("");
+  const [memberAddress,setMemberAddress] = useState("");
   const [statsCategory, setStatsCategory] = useState("all");
   const appearance = useAppearance();
   const [viewPhoto, setViewPhoto] = useState<{src:string;name:string}|null>(null);
@@ -1411,6 +1419,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     next.persons.forEach((p) => {
       if (p.photoId) used.add(p.photoId);
     });
+    if(next.familyProfile?.coverPhotoId)used.add(next.familyProfile.coverPhotoId);
     next.memories.forEach((m) => m.mediaIds.forEach((id) => used.add(id)));
     const cleaned = {
       ...next,
@@ -1656,15 +1665,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         </button>
       </div>
     );
-  const filtered = people
-    .filter(
-      (p) =>
-        (p.name + " " + p.nickname)
-          .toLocaleLowerCase("id")
-          .includes(query.toLocaleLowerCase("id")) &&
-        (filter === "all" || p.status === filter),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+  const filtered = searchMembers(state,{query,status:filter,sex:memberSex,place:publicView?"":memberPlace,address:publicView?"":memberAddress});
   const personRow = (p: Person, subtitle?: string, action?: ReactNode) => (
     <div className="member-row" key={p.id} style={deceasedStyle(p.status)}>
       <button className="member-main" onClick={() => openPerson(p.id)}>
@@ -1911,7 +1912,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
               <Search size={20} />
               <input
                 aria-label="Cari anggota keluarga"
-                placeholder="Cari nama atau nama panggilan…"
+                placeholder={publicView?"Cari nama atau nama panggilan…":"Cari nama, panggilan, atau tempat lahir…"}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -1932,6 +1933,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                 </button>
               ))}
             </div>
+            <details className="card"><summary>Pencarian lebih lengkap</summary><div className="form-grid"><label>Jenis kelamin<select value={memberSex} onChange={e=>setMemberSex(e.target.value)}><option value="all">Semua</option><option value="M">Laki-laki</option><option value="F">Perempuan</option><option value="U">Belum diketahui</option></select></label>{!publicView&&<><label>Tempat lahir<input value={memberPlace} onChange={e=>setMemberPlace(e.target.value)} placeholder="Contoh: Salatiga"/></label><label>Alamat (termasuk alamat mengikuti orang tua)<input value={memberAddress} onChange={e=>setMemberAddress(e.target.value)} placeholder="Ketik sebagian alamat"/></label></>}</div><button type="button" className="secondary" onClick={()=>{setQuery("");setFilter("all");setMemberSex("all");setMemberPlace("");setMemberAddress("");}}>Reset semua pencarian</button></details>
             <p className="list-count">{filtered.length} anggota ditemukan</p>
             <section className="card member-list">
               {filtered.slice(0, 200).map((p) => personRow(p))}
@@ -2795,6 +2797,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "familyProfile" && !publicView && <FamilyProfile state={state} photos={photos} onPhoto={onPhoto} commit={commit} readOnly={readOnly} />}
+        {page === "timeline" && !publicView && <FamilyTimeline state={state} openPerson={openPerson} />}
         {page === "book" && !publicView && <FamilyBook state={state} photos={photos} />}
         {page === "privacy" && !publicView && <PrivacySettings />}
         {page === "history" && !publicView && <History />}
@@ -2805,6 +2809,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<BookHeart />} title="Profil keluarga besar" text="Sejarah, asal-usul, tokoh pendahulu, dan sampul" onClick={() => setPage("familyProfile")} /><SettingRow icon={<CalendarDays />} title="Linimasa keluarga" text="Urutan kelahiran, pernikahan, wafat, dan peristiwa keluarga" onClick={() => setPage("timeline")} /></section>
             <section className="card"><SettingRow icon={<BookHeart />} title="Buku keluarga" text="Baca buku keluarga di aplikasi atau unduh PDF" onClick={() => setPage("book")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Privasi pengunjung" text="Atur foto, nama panggilan, dan akses publik · khusus admin" onClick={() => setPage("privacy")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Riwayat perubahan" text="Catatan server tentang revisi, usulan, dan akun · khusus admin" onClick={() => setPage("history")} /></section>

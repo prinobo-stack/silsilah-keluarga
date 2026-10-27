@@ -12,8 +12,8 @@ export function proposalChanges(before: Snapshot, after: Snapshot) {
     after.state.persons.find((p) => p.id === id)?.name ??
     before.state.persons.find((p) => p.id === id)?.name ??
     id;
-  for (const key of ["familyName", "rootId"] as const)
-    if (before.state[key] !== after.state[key])
+  for (const key of ["familyName", "rootId", "familyProfile"] as const)
+    if (JSON.stringify(before.state[key]) !== JSON.stringify(after.state[key]))
       changes.push({
         section: "Identitas keluarga",
         name: key,
