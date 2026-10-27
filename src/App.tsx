@@ -1,4 +1,6 @@
 import {useAppearance, AppearanceSettings} from "./Appearance";
+import FamilySuggestions from "./FamilySuggestions";
+import { suggestionsFor } from "./family-suggestions";
 import PhotoViewer from "./PhotoViewer";
 import PhotoCropper from "./PhotoCropper";
 import {
@@ -103,6 +105,7 @@ type Attach = {
   anchor: string;
   relation: "parent" | "child" | "partner" | "older" | "younger";
   kind: ParentLink["kind"];
+  siblingKind?: string;
 };
 type Modal =
   | { type: "person"; person?: Person; attach?: Attach }
@@ -324,6 +327,7 @@ function PersonEditor({
   photos: Record<string, string>;
   onPhoto: (id: string, data: string) => void;
 }) {
+  const [pendingFamily, setPendingFamily] = useState<{state:State; childId:string; parentId:string} | null>(null);
   const [p, setP] = useState<Person>(() =>
     person ? { ...person } : newPerson(),
   );
@@ -415,6 +419,7 @@ function PersonEditor({
             next,
             attach.relation === "older" ? saved.id : attach.anchor,
             attach.relation === "older" ? attach.anchor : saved.id,
+            attach.siblingKind ? "Saudara " + attach.siblingKind : "",
           );
         else if (attach.relation === "partner")
           next = {
@@ -440,6 +445,11 @@ function PersonEditor({
           );
       }
       validateState(next);
+      if (attach && (attach.relation === "child" || attach.relation === "parent")) {
+        const parentId = attach.relation === "child" ? attach.anchor : saved.id;
+        const childId = attach.relation === "child" ? saved.id : attach.anchor;
+        if (suggestionsFor(next, parentId, childId).length) { setPendingFamily({state:next,parentId,childId}); return; }
+      }
       await commit(next);
       close();
     } catch (e) {
@@ -448,6 +458,7 @@ function PersonEditor({
       setBusy(false);
     }
   }
+  if (pendingFamily) return <Dialog title="Saran hubungan keluarga" close={() => setPendingFamily(null)}><FamilySuggestions state={pendingFamily.state} childId={pendingFamily.childId} items={suggestionsFor(pendingFamily.state,pendingFamily.parentId,pendingFamily.childId)} commit={async next => { await commit(next); close(); }} close={() => setPendingFamily(null)} /></Dialog>;
   return (
     <Dialog title={person ? "Edit anggota" : "Tambah anggota"} close={cancel}>
       <form onSubmit={submit}>
@@ -672,6 +683,7 @@ function RelationEditor({
   union?: Union;
   initialRelation?: Attach["relation"];
 }) {
+  const [pendingFamily, setPendingFamily] = useState<{state:State; childId:string; parentId:string} | null>(null);
   const [relation, setRelation] = useState<Attach["relation"]>(
       union
         ? "partner"
@@ -688,6 +700,7 @@ function RelationEditor({
     [start, setStart] = useState(union?.start ?? ""),
     [end, setEnd] = useState(union?.end ?? ""),
     [role, setRole] = useState(union?.notes ?? link?.role ?? ""),
+    [siblingKind, setSiblingKind] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const name = state.persons.find((p) => p.id === anchor)?.name;
@@ -701,7 +714,7 @@ function RelationEditor({
           state,
           relation === "older" ? member : anchor,
           relation === "older" ? anchor : member,
-          role,
+          [siblingKind ? "Saudara " + siblingKind : "", role].filter(Boolean).join(" · "),
         );
       } else if (relation === "partner") {
         if (
@@ -767,6 +780,11 @@ function RelationEditor({
         }
       }
       validateState(next);
+      if (relation === "child" || relation === "parent") {
+        const parentId = relation === "child" ? anchor : member;
+        const childId = relation === "child" ? member : anchor;
+        if (suggestionsFor(next, parentId, childId).length) { setPendingFamily({state:next,parentId,childId}); return; }
+      }
       await commit(next);
       close();
     } catch (e) {
@@ -775,6 +793,7 @@ function RelationEditor({
       setBusy(false);
     }
   }
+  if (pendingFamily) return <Dialog title="Saran hubungan keluarga" close={() => setPendingFamily(null)}><FamilySuggestions state={pendingFamily.state} childId={pendingFamily.childId} items={suggestionsFor(pendingFamily.state,pendingFamily.parentId,pendingFamily.childId)} commit={async next => { await commit(next); close(); }} close={() => setPendingFamily(null)} /></Dialog>;
   return (
     <Dialog
       title={link || union ? "Edit hubungan" : "Tambahkan hubungan"}
@@ -821,17 +840,14 @@ function RelationEditor({
           <button
             type="button"
             className="secondary full"
-            onClick={() => create({ anchor, relation, kind })}
+            onClick={() => create({ anchor, relation, kind, siblingKind })}
           >
             <Plus size={16} />
             Buat anggota baru dan tautkan
           </button>
         )}
         {relation === "older" || relation === "younger" ? (
-          <p className="muted">
-            Hubungan saudara dicatat tanpa otomatis menyalin orang tua. Data
-            orang tua dapat ditambahkan secara terpisah.
-          </p>
+          <><label>Jenis saudara<select value={siblingKind} onChange={e=>setSiblingKind(e.target.value)}><option value="">Belum diketahui</option><option value="kandung">Kandung</option><option value="tiri">Tiri</option><option value="seayah">Seayah</option><option value="seibu">Seibu</option></select></label><p className="muted">Hubungan saudara dicatat tanpa otomatis menyalin orang tua. Kandung: ayah dan ibu sama; seayah/seibu: satu orang tua kandung sama; tiri: tidak berbagi orang tua kandung.</p></>
         ) : relation !== "partner" ? (
           <label>
             Hubungan anak
@@ -841,6 +857,7 @@ function RelationEditor({
             >
               <option value="biological">Biologis</option>
               <option value="adoptive">Anak angkat</option>
+              <option value="step">Anak tiri</option>
             </select>
           </label>
         ) : (
@@ -1992,7 +2009,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                             strokeDasharray={
                               edge.kind === "sibling"
                                 ? "2 4"
-                                : edge.kind === "adoptive"
+                                : (edge.kind === "adoptive" || edge.kind === "step")
                                   ? "6 4"
                                   : undefined
                             }
@@ -2513,7 +2530,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                           )!;
                           return personRow(
                             p,
-                            (l.kind === "adoptive" ? "Adopsi" : "Biologis") +
+                            (l.kind === "step" ? "Tiri" : l.kind === "adoptive" ? "Adopsi" : "Kandung") +
                               (l.role ? " · " + l.role : ""),
                             <>
                               <IconButton

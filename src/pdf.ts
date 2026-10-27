@@ -102,7 +102,7 @@ export async function exportPdf(
             borderDashArray:
               e.kind === "sibling"
                 ? [1, 3]
-                : e.kind === "adoptive"
+                : (e.kind === "adoptive" || e.kind === "step")
                   ? [3, 3]
                   : undefined,
           },

@@ -63,7 +63,7 @@ export interface ParentLink {
   id: string;
   parentId: string;
   childId: string;
-  kind: "biological" | "adoptive";
+  kind: "biological" | "adoptive" | "step";
   role: string;
 }
 export interface SiblingLink {
@@ -231,9 +231,7 @@ export function validateState(s: State): void {
   const txt = (v: unknown, max = 10000) =>
     typeof v === "string" && v.length <= max;
   for (const p of s.persons) {
-    if ((p.phone !== undefined && !txt(p.phone, 40)) ||
-        (p.religion !== undefined && !txt(p.religion, 100)))
-      throw Error("Nomor HP atau agama anggota tidak valid.");
+    if ((p.phone !== undefined && !txt(p.phone, 40)) || (p.religion !== undefined && !txt(p.religion, 100))) throw Error("Nomor HP atau agama anggota tidak valid.");
     if (
       p.nik !== undefined &&
       (typeof p.nik !== "string" ||
@@ -279,7 +277,7 @@ export function validateState(s: State): void {
       throw Error("Anggota hubungan tidak ditemukan.");
     if (l.parentId === l.childId)
       throw Error("Seseorang tidak dapat menjadi orang tua dirinya sendiri.");
-    if (!["biological", "adoptive"].includes(l.kind) || !txt(l.role, 80))
+    if (!["biological", "adoptive", "step"].includes(l.kind) || !txt(l.role, 80))
       throw Error("Jenis hubungan tidak valid.");
     const k = [l.parentId, l.childId, l.kind].join("|");
     if (pairs.has(k)) throw Error("Hubungan orang tua sudah ada.");
@@ -361,6 +359,14 @@ export function validateState(s: State): void {
         "Hubungan saudara sudah ada. Hapus atau perbaiki hubungan lama.",
       );
     siblingPairs.add(key);
+    const declaredKind = /^Saudara (kandung|tiri|seayah|seibu)(?:$| ·)/.exec(l.notes)?.[1];
+    if (declaredKind) {
+      const left = new Set(s.parents.filter(p => p.childId === l.olderId && p.kind === "biological").map(p => p.parentId));
+      const right = new Set(s.parents.filter(p => p.childId === l.youngerId && p.kind === "biological").map(p => p.parentId));
+      const common = [...left].filter(id => right.has(id)).length;
+      if (declaredKind === "tiri" && common) throw Error("Saudara yang berbagi orang tua kandung bukan saudara tiri.");
+      if (left.size >= 2 && right.size >= 2 && ((declaredKind === "kandung" && common !== 2) || (["seayah", "seibu"].includes(declaredKind) && common !== 1))) throw Error("Jenis saudara tidak sesuai dengan data orang tua kandung.");
+    }
     const a = s.persons.find((p) => p.id === l.olderId)!,
       b = s.persons.find((p) => p.id === l.youngerId)!;
     if (
@@ -475,11 +481,11 @@ export function siblingsOf(s: State, id: string) {
     seen.add(other);
   }
   const parents = new Set(
-    s.parents.filter((l) => l.childId === id).map((l) => l.parentId),
+    s.parents.filter((l) => l.childId === id && l.kind === "biological").map((l) => l.parentId),
   );
   const self = s.persons.find((p) => p.id === id);
   for (const l of s.parents) {
-    if (l.childId === id || !parents.has(l.parentId) || seen.has(l.childId))
+    if (l.kind !== "biological" || l.childId === id || !parents.has(l.parentId) || seen.has(l.childId))
       continue;
     const p = s.persons.find((p) => p.id === l.childId && !p.deletedAt);
     if (!p) continue;
@@ -492,7 +498,7 @@ export function siblingsOf(s: State, id: string) {
       personId: p.id,
       label,
       linkId: null,
-      notes: "Berdasarkan orang tua yang sama",
+      notes: "Berbagi orang tua kandung; jenis saudara belum dikonfirmasi",
     });
     seen.add(p.id);
   }
@@ -559,7 +565,7 @@ export interface TreeNode {
 export interface TreeEdge {
   from: string;
   to: string;
-  kind: "biological" | "adoptive" | "union" | "sibling";
+  kind: "biological" | "adoptive" | "step" | "union" | "sibling";
   focused: boolean;
 }
 /** depth=0 means all generations. Collapse changes the view, never the data. */
