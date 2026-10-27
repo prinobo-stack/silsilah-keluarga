@@ -1,3 +1,4 @@
+import {historyCursor} from "../src/audit-history.ts";
 import {
   createServer,
   type IncomingMessage,
@@ -190,6 +191,18 @@ export async function createFamilyServer(options: {
       if (path.startsWith("/api/") && !["GET", "HEAD"].includes(method)) {
         if (req.headers.origin !== origin.origin)
           fail(403, "Asal permintaan tidak diizinkan.");
+      }
+      if (method === "GET" && path === "/api/history") {
+        await auth(req, "owner");
+        let before: string | null = null;
+        try { before = historyCursor(url.searchParams.get("before")); }
+        catch { fail(400, "Penanda halaman riwayat tidak valid."); }
+        const rows = await db.prepare(
+          "SELECT a.id::text AS id,a.actor,a.action,a.at,u.name AS actor_name FROM audit a LEFT JOIN users u ON u.id=a.actor" +
+          (before ? " WHERE a.id < ?" : "") + " ORDER BY a.id DESC LIMIT 51"
+        ).all(...(before ? [before] : []));
+        const visible = rows.slice(0,50) as {id:string}[];
+        return respond(res,200,{rows:visible,next:rows.length>50?visible[visible.length-1].id:null});
       }
       if (method === "GET" && path === "/api/status")
         return respond(res, 200, {

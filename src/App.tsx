@@ -1,3 +1,4 @@
+import History from "./History";
 import FamilyStats from "./FamilyStats";
 import Agenda from "./Agenda";
 import Kinship from "./Kinship";
@@ -107,6 +108,7 @@ const titles = {
   kinship: "Cari hubungan keluarga",
   agenda: "Agenda keluarga",
   stats: "Statistik keluarga",
+  history: "Riwayat perubahan",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -2762,6 +2764,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "history" && !publicView && <History />}
         {page === "stats" && !publicView && <FamilyStats state={state} initialCategory={statsCategory} openPerson={openPerson} />}
         {page === "agenda" && !publicView && <Agenda state={state} commit={commit} readOnly={readOnly} openPerson={openPerson} />}
         {page === "kinship" && !publicView && <Kinship state={state} openPerson={openPerson} />}
@@ -2769,6 +2772,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<ShieldCheck />} title="Riwayat perubahan" text="Catatan server tentang revisi, usulan, dan akun · khusus admin" onClick={() => setPage("history")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Statistik keluarga" text="Ringkasan anggota, usia, dan kelengkapan data" onClick={() => {setStatsCategory("all");setPage("stats");}} /></section>
             <section className="card"><SettingRow icon={<CalendarDays />} title="Agenda keluarga" text="Ulang tahun, pernikahan, dan acara keluarga" onClick={() => setPage("agenda")} /></section>
             <section className="card"><SettingRow icon={<Network />} title="Cari hubungan keluarga" text="Pilih dua anggota untuk melihat sebutan dan jalur hubungannya" onClick={() => setPage("kinship")} /></section>
