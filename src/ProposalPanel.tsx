@@ -13,6 +13,8 @@ export function ProposalPanel({
   afterDecision: () => void;
 }) {
   const requestVersion = useRef(0);
+  const [selectedParts,setSelectedParts] = useState<number[]>([]);
+  const [savedArchive,setSavedArchive] = useState<{id:string;version:number}|null>(null);
   const [rows, setRows] = useState<any[]>([]),
     [review, setReview] = useState<any>(null),
     [note, setNote] = useState(""),
@@ -40,6 +42,7 @@ export function ProposalPanel({
     setLoaded(true);
   }
   async function openReview(row: any) {
+    setSelectedParts([]);
     const request = ++requestVersion.current;
     setReview(null);
     setNote("");
@@ -73,6 +76,14 @@ export function ProposalPanel({
     window.addEventListener("proposal-refresh", show);
     return () => window.removeEventListener("proposal-refresh", show);
   }, []);
+  async function prepareSelected() {
+    if(!review || !selectedParts.length)return;
+    if(!window.confirm(`Siapkan usulan terbaru dari ${selectedParts.length} bagian terpilih? Setiap catatan terpilih memakai seluruh isi usulan yang ditampilkan; bagian lain tetap mengikuti data resmi. Data resmi belum berubah sampai Anda menyetujui.`))return;
+    const result=await api(`proposals/${review.id}/rebase`,{version:review.version,current_revision:review.current_revision,selected:selectedParts});
+    setSavedArchive({id:review.id,version:result.archived_version});
+    await openReview({...review,version:result.version});
+    window.dispatchEvent(new Event("proposal-changed"));
+  }
   async function decide(action: string) {
     if (!review) return;
     await api(`proposals/${review.id}/decision`, {
@@ -145,8 +156,7 @@ export function ProposalPanel({
           {review.status === "pending" &&
             review.current_revision !== review.base_revision && (
               <p className="error-text">
-                Data resmi telah berubah. Usulan ini tidak dapat disetujui
-                sebelum anggota memperbaruinya.
+                Data resmi telah berubah. Admin dapat menyiapkan usulan terbaru dengan memilih bagian yang masih diperlukan di bawah, lalu meninjaunya sebelum menyetujui. Pilihan awal semuanya kosong.
               </p>
             )}
           {review.status === "approved" && (
@@ -183,9 +193,10 @@ export function ProposalPanel({
                 {c.section}: {c.name} ·{" "}
                 {!c.before ? "Ditambahkan" : !c.after ? "Dihapus" : "Diubah"}
               </summary>
+              {user.role === "owner" && review.status === "pending" && review.current_revision !== review.base_revision && <label className="check-label"><input type="checkbox" disabled={busy} checked={selectedParts.includes(i)} onChange={e=>setSelectedParts(parts=>e.target.checked?[...parts,i]:parts.filter(n=>n!==i))}/>Gunakan seluruh catatan usulan ini pada usulan terbaru</label>}
               <div className="proposal-compare">
                 <div>
-                  <strong>Sebelum</strong>
+                  <strong>Data resmi saat ini</strong>
                   <FieldValues
                     before={c.before}
                     after={c.after}
@@ -213,6 +224,8 @@ export function ProposalPanel({
           ))}
           {user.role === "owner" && review.status === "pending" && (
             <>
+              {review.current_revision !== review.base_revision && <section className="card"><h3>Perbarui usulan yang tertahan</h3><p>Perbedaan ini dibandingkan dengan data resmi sekarang, bukan daftar perubahan asli pengusul. Buka dan periksa setiap bagian sebelum mencentangnya. Bagian terpilih memakai seluruh isi catatan usulan, termasuk kolom yang kosong atau penghapusan. Jika mengganti hubungan lama dengan hubungan baru, periksa kedua bagian bersama.</p><button className="secondary" disabled={busy||!selectedParts.length} onClick={()=>void run(prepareSelected)}>Siapkan usulan terbaru ({selectedParts.length} bagian)</button></section>}
+              {savedArchive && savedArchive.id===review.id && <p>Usulan lama tetap diarsipkan. <a href={`/api/proposals/${review.id}/archive?version=${savedArchive.version}`} download>Unduh salinan usulan lama</a>. Tinjau kembali usulan terbaru sebelum menekan Setujui.</p>}
               <label>
                 Catatan keputusan
                 <textarea

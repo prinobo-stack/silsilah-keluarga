@@ -1,3 +1,4 @@
+import {prepareReviewedProposal} from "./reviewed-proposal.ts";
 import {DEFAULT_PUBLIC_PRIVACY,parsePublicPrivacy,privacyKey} from "../src/public-privacy.ts";
 import {historyCursor} from "../src/audit-history.ts";
 import {
@@ -117,6 +118,7 @@ export async function createFamilyServer(options: {
     CREATE TABLE IF NOT EXISTS family(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, full_zip BYTEA NOT NULL, view_zip BYTEA NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE IF NOT EXISTS proposals(id TEXT PRIMARY KEY,actor TEXT NOT NULL REFERENCES users(id),base_revision INTEGER NOT NULL,version INTEGER NOT NULL,full_zip BYTEA NOT NULL,view_zip BYTEA NOT NULL,status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')),note TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,published_revision INTEGER);
     CREATE TABLE IF NOT EXISTS public_privacy(id INTEGER PRIMARY KEY CHECK(id=1), config TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS proposal_revisions(proposal_id TEXT NOT NULL,version INTEGER NOT NULL,full_zip BYTEA NOT NULL,base_revision INTEGER NOT NULL,PRIMARY KEY(proposal_id,version));
     CREATE TABLE IF NOT EXISTS audit(id BIGSERIAL PRIMARY KEY, actor TEXT NOT NULL, action TEXT NOT NULL, at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS login_limits(key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires BIGINT NOT NULL);
   `));
@@ -428,7 +430,7 @@ export async function createFamilyServer(options: {
         return respond(res, 200, { proposals: rows });
       }
       const proposalRoute =
-        /^\/api\/proposals\/([a-zA-Z0-9-]+)(?:\/(archive|decision|status|media\/[a-zA-Z0-9-]+))?$/.exec(
+        /^\/api\/proposals\/([a-zA-Z0-9-]+)(?:\/(archive|decision|rebase|status|media\/[a-zA-Z0-9-]+))?$/.exec(
           path,
         );
       if (proposalRoute) {
@@ -459,6 +461,14 @@ export async function createFamilyServer(options: {
         if (method === "GET" && operation === "status")
           return respond(res, 200, info);
         if (method === "GET" && operation === "archive") {
+          const version = url.searchParams.get("version");
+          if(version !== null){
+            if(!/^[1-9]\d{0,8}$/.test(version))fail(400,"Versi arsip tidak valid.");
+            const archived = await db.prepare("SELECT full_zip FROM proposal_revisions WHERE proposal_id=? AND version=?").get(p.id,Number(version)) as {full_zip:Uint8Array}|undefined;
+            if(!archived)fail(404,"Arsip usulan tidak ditemukan.");
+            res.writeHead(200,{"Content-Type":"application/zip","Content-Disposition":"attachment; filename=Usulan_Sebelum_Peninjauan.zip"});res.end(archived!.full_zip);return;
+          }
+
           res.writeHead(200, {
             "Content-Type": "application/zip",
             "Content-Disposition": "attachment; filename=Usulan_Keluarga.zip",
@@ -495,6 +505,57 @@ export async function createFamilyServer(options: {
               ]),
             ),
           });
+        }
+        if (method === "POST" && operation === "rebase") {
+          await auth(req,"owner");
+          const data = await json(req);
+          if(!Number.isSafeInteger(data.version)||!Number.isSafeInteger(data.current_revision))fail(400,"Versi peninjauan tidak valid.");
+          await db.exec("BEGIN IMMEDIATE");
+          try {
+            const latest=await db.prepare("SELECT * FROM proposals WHERE id=?").get(p.id) as unknown as Proposal;
+            const current=await db.prepare("SELECT revision,full_zip FROM family WHERE id=1").get() as {revision:number;full_zip:Uint8Array}|undefined;
+            if(latest.status!=="pending"||latest.version!==data.version||(current?.revision??0)!==data.current_revision)fail(409,"Data atau usulan berubah. Muat ulang rincian sebelum meninjau.");
+            const before=current?await inspectBackup(current.full_zip):{state:emptyState(),files:{}};
+            const draft=await inspectBackup(latest.full_zip);
+            let full;
+            try { full=prepareReviewedProposal(before,draft,data.selected); }
+            catch(e){fail(400,"Pilihan belum dapat digabung: "+(e as Error).message);}
+            const canonical=await createBackup(full!.state,async id=>full!.files[id]);
+        const redacted = structuredClone(full!.state);
+        redacted.persons = redacted.persons.filter((p) => !p.deletedAt);
+        const live = new Set(redacted.persons.map((p) => p.id));
+        redacted.parents = redacted.parents.filter(
+          (l) => live.has(l.parentId) && live.has(l.childId),
+        );
+        redacted.siblings = (redacted.siblings ?? []).filter(
+          (l) => live.has(l.olderId) && live.has(l.youngerId),
+        );
+        redacted.unions = redacted.unions.filter((u) =>
+          u.members.every((id) => live.has(id)),
+        );
+        redacted.memories = redacted.memories.map((m) => ({
+          ...m,
+          personIds: m.personIds.filter((id) => live.has(id)),
+        }));
+        if (redacted.rootId && !live.has(redacted.rootId))
+          redacted.rootId = redacted.persons[0]?.id ?? null;
+        const mediaIds = new Set([
+          ...redacted.persons.flatMap((p) => (p.photoId ? [p.photoId] : [])),
+          ...redacted.memories.flatMap((m) => m.mediaIds),
+        ]);
+        redacted.media = redacted.media.filter((m) => mediaIds.has(m.id));
+        for (const p of redacted.persons) {
+          p.nik = "";
+          p.address = "";
+          p.addressMode = "manual";
+        }
+        const view = await createBackup(redacted, async (id) => full!.files[id]);
+
+            await db.prepare("INSERT INTO proposal_revisions(proposal_id,version,full_zip,base_revision) VALUES(?,?,?,?) ON CONFLICT(proposal_id,version) DO NOTHING").run(latest.id,latest.version,latest.full_zip,latest.base_revision);
+            await db.prepare("UPDATE proposals SET base_revision=?,version=?,full_zip=?,view_zip=?,updated_at=? WHERE id=?").run(current?.revision??0,latest.version+1,canonical,view,new Date().toISOString(),latest.id);
+            await audit(u.id,"rebase:"+latest.id+":"+(latest.version+1));await db.exec("COMMIT");
+            return respond(res,200,{ok:true,version:latest.version+1,archived_version:latest.version});
+          }catch(e){await db.exec("ROLLBACK");throw e;}
         }
         if (method === "POST" && operation === "decision") {
           (await auth(req, "owner"));
