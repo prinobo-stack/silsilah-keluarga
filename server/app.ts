@@ -1,3 +1,4 @@
+import {sheetsConfig,backupTables,sendSheetsBackup} from "./sheets-backup.ts";
 import {prepareReviewedProposal} from "./reviewed-proposal.ts";
 import {DEFAULT_PUBLIC_PRIVACY,parsePublicPrivacy,privacyKey} from "../src/public-privacy.ts";
 import {historyCursor} from "../src/audit-history.ts";
@@ -195,6 +196,22 @@ export async function createFamilyServer(options: {
       if (path.startsWith("/api/") && !["GET", "HEAD"].includes(method)) {
         if (req.headers.origin !== origin.origin)
           fail(403, "Asal permintaan tidak diizinkan.");
+      }
+      if (path === "/api/sheets-backup" && (method === "GET" || method === "POST")) {
+        const owner=await auth(req,"owner"),config=sheetsConfig();
+        if(method==="GET"){const current=await db.prepare("SELECT revision FROM family WHERE id=1").get() as {revision:number}|undefined;return respond(res,200,{configured:!!config,revision:current?.revision??null,url:config?'https://docs.google.com/spreadsheets/d/'+config.spreadsheetId:null});}
+        if(!config)fail(503,"Koneksi Google Sheets belum disiapkan di server.");
+        const data=await json(req) as {includePrivate?:unknown;revision?:unknown};
+        if(!data||typeof data.includePrivate!=="boolean"||!Number.isSafeInteger(data.revision))fail(400,"Pilihan salinan tidak valid.");
+        const row=await db.prepare("SELECT revision,full_zip FROM family WHERE id=1").get() as {revision:number;full_zip:Uint8Array}|undefined;
+        if(!row)fail(409,"Belum ada data resmi. Sinkronkan data keluarga terlebih dahulu.");
+        if(row!.revision!==data.revision)fail(409,"Revisi server berubah. Sinkronkan dan buka ulang menu ini sebelum menyalin.");
+        const prepared=await inspectBackup(row!.full_zip);
+        let result;
+        try{result=await sendSheetsBackup(config!,backupTables(prepared.state,row!.revision,data.includePrivate as boolean,new Date().toISOString()),row!.revision);}
+        catch(e){fail(502,e instanceof Error&&e.name!=="TimeoutError"?e.message:"Waktu koneksi Google habis. Periksa spreadsheet sebelum mengulang; salinan mungkin sudah diterima.");}
+        await audit(owner.id,"sheets-backup:"+row!.revision);
+        return respond(res,200,result);
       }
       if (path === "/api/privacy" && (method === "GET" || method === "POST")) {
         const owner = await auth(req,"owner");

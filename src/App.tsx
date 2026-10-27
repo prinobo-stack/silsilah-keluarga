@@ -1,3 +1,4 @@
+import SheetsBackup from "./SheetsBackup";
 import FamilyProfile from "./FamilyProfile";
 import FamilyTimeline from "./FamilyTimeline";
 import {searchMembers} from "./member-search";
@@ -115,6 +116,7 @@ const titles = {
   kinship: "Cari hubungan keluarga",
   agenda: "Agenda keluarga",
   stats: "Statistik keluarga",
+  sheetsBackup: "Backup ke Google Sheets",
   history: "Riwayat perubahan",
   privacy: "Privasi pengunjung",
   book: "Buku keluarga",
@@ -2800,6 +2802,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         {page === "familyProfile" && !publicView && <FamilyProfile state={state} photos={photos} onPhoto={onPhoto} commit={commit} readOnly={readOnly} />}
         {page === "timeline" && !publicView && <FamilyTimeline state={state} openPerson={openPerson} />}
         {page === "book" && !publicView && <FamilyBook state={state} photos={photos} />}
+        {page === "sheetsBackup" && !publicView && <SheetsBackup />}
         {page === "privacy" && !publicView && <PrivacySettings />}
         {page === "history" && !publicView && <History />}
         {page === "stats" && !publicView && <FamilyStats state={state} initialCategory={statsCategory} openPerson={openPerson} />}
@@ -2812,6 +2815,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             <section className="card"><SettingRow icon={<BookHeart />} title="Profil keluarga besar" text="Sejarah, asal-usul, tokoh pendahulu, dan sampul" onClick={() => setPage("familyProfile")} /><SettingRow icon={<CalendarDays />} title="Linimasa keluarga" text="Urutan kelahiran, pernikahan, wafat, dan peristiwa keluarga" onClick={() => setPage("timeline")} /></section>
             <section className="card"><SettingRow icon={<BookHeart />} title="Buku keluarga" text="Baca buku keluarga di aplikasi atau unduh PDF" onClick={() => setPage("book")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Privasi pengunjung" text="Atur foto, nama panggilan, dan akses publik · khusus admin" onClick={() => setPage("privacy")} /></section>
+            <section className="card"><SettingRow icon={<BookHeart />} title="Backup ke Google Sheets" text="Salin data resmi ke spreadsheet · khusus admin" onClick={() => setPage("sheetsBackup")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Riwayat perubahan" text="Catatan server tentang revisi, usulan, dan akun · khusus admin" onClick={() => setPage("history")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Statistik keluarga" text="Ringkasan anggota, usia, dan kelengkapan data" onClick={() => {setStatsCategory("all");setPage("stats");}} /></section>
             <section className="card"><SettingRow icon={<CalendarDays />} title="Agenda keluarga" text="Ulang tahun, pernikahan, dan acara keluarga" onClick={() => setPage("agenda")} /></section>
