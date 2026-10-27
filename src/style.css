@@ -1432,3 +1432,16 @@ body:has(.modal-backdrop) {
 .status-legend { display: flex; gap: 7px; align-items: center; font-size: 12px; padding: 6px; flex-shrink: 0; }
 .status-legend > span { width: 16px; height: 16px; border: 1px solid #777; border-radius: 4px; }
 .deceased-preview { color: #202020; padding: 12px; border: 1px solid #888; border-radius: 10px; margin: 12px 0; }
+
+/* Device appearance preferences, shared by normal and fullscreen tree views. */
+html{background-color:var(--appearance-background,#f7f6f0);background-image:var(--appearance-main-image,none);background-size:cover;background-position:center;background-attachment:fixed}
+body{background:transparent}
+.card,.app-header,.bottom-nav{background-color:var(--appearance-surface,#fffef9)}
+.primary{background:var(--appearance-accent,#16634a);color:var(--appearance-on-accent,#fff)}
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--appearance-accent,#16634a)}
+.tree-viewport,.tree-screen.is-fullscreen,.tree-screen:fullscreen{background-color:var(--appearance-tree,#f0f4ee);background-image:var(--appearance-tree-image,none);background-size:cover;background-position:center}
+.tree-screen.is-fullscreen .tree-toolbar,.tree-screen:fullscreen .tree-toolbar{background:var(--appearance-surface,#fffef9)}
+.appearance-settings input[type=color]{width:100%;min-height:48px;padding:4px;cursor:pointer}
+.appearance-settings input[type=file]{max-width:100%;margin-bottom:12px}
+.appearance-settings>div{margin-bottom:16px}
+.app-shell{background:transparent}

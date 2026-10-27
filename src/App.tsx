@@ -1,3 +1,4 @@
+import {useAppearance, AppearanceSettings} from "./Appearance";
 import PhotoViewer from "./PhotoViewer";
 import PhotoCropper from "./PhotoCropper";
 import {
@@ -1104,6 +1105,7 @@ function PinEditor({ close, done }: { close: () => void; done: () => void }) {
   );
 }
 export default function App({ readOnly = false, publicView = false }: { readOnly?: boolean; publicView?: boolean } = {}) {
+  const appearance = useAppearance();
   const [viewPhoto, setViewPhoto] = useState<{src:string;name:string}|null>(null);
   const [state, setState] = useState<State | null>(null),
     [page, setPage] = useState<Page>(publicView ? "tree" : "home"),
@@ -2029,7 +2031,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                                   ? "#b9f1d6"
                                   : n.focused
                                     ? "#e2ffed"
-                                    : "#f1f3f0"
+                                    : "var(--appearance-surface, #f1f3f0)"
                               }
                               stroke={
                                 p.id === selected
@@ -2734,6 +2736,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         )}
         {page === "settings" && (
           <>
+            <AppearanceSettings appearance={appearance} />
             <section className="card">
               <h2>Warna anggota yang sudah wafat</h2>
               <p>Warna berlaku pada pohon, daftar anggota, dan profil. Disimpan di browser perangkat ini.</p>
