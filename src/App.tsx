@@ -1148,6 +1148,58 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
   const pinch = useRef<{distance: number; scale: number; x: number; y: number} | null>(null);
   const gestureMoved = useRef(false);
   const treeRef = useRef<HTMLDivElement>(null);
+  const treeScreenRef = useRef<HTMLDivElement>(null);
+  const [treeFullscreen, setTreeFullscreen] = useState(false);
+  const [deceasedColor, setDeceasedColor] = useState(() => {
+    try {
+      const value = localStorage.getItem("silsilah-deceased-color");
+      return value && /^#[0-9a-f]{6}$/i.test(value) ? value : "#fce4ec";
+    } catch { return "#fce4ec"; }
+  });
+  function changeDeceasedColor(value: string) {
+    setDeceasedColor(value);
+    try { localStorage.setItem("silsilah-deceased-color", value); } catch { /* Session preference remains usable. */ }
+  }
+  function deceasedStyle(status: Person["status"]) {
+    return status === "deceased" ? { backgroundColor: deceasedColor, color: "#202020" } : undefined;
+  }
+  async function toggleTreeFullscreen() {
+    if (treeFullscreen) {
+      setTreeFullscreen(false);
+      if (document.fullscreenElement === treeScreenRef.current) {
+        try { await document.exitFullscreen(); } catch { /* CSS mode has already closed. */ }
+      }
+      return;
+    }
+    setTreeFullscreen(true);
+    try { await treeScreenRef.current?.requestFullscreen?.(); } catch { /* Use viewport-filling mode when native fullscreen is unavailable. */ }
+  }
+  useEffect(() => {
+    const onChange = () => setTreeFullscreen(document.fullscreenElement === treeScreenRef.current);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTreeFullscreen(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  useEffect(() => {
+    if (!treeFullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [treeFullscreen]);
+  useEffect(() => {
+    if (page !== "tree") {
+      setTreeFullscreen(false);
+      if (document.fullscreenElement === treeScreenRef.current && document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => {});
+      }
+    }
+  }, [page]);
   const nameTap = useRef<{id: string; timer: ReturnType<typeof setTimeout>} | null>(null);
   useEffect(() => () => { if (nameTap.current) clearTimeout(nameTap.current.timer); }, []);
   function tapTreeName(p: Person) {
@@ -1555,7 +1607,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     )
     .sort((a, b) => a.name.localeCompare(b.name, "id"));
   const personRow = (p: Person, subtitle?: string, action?: ReactNode) => (
-    <div className="member-row" key={p.id}>
+    <div className="member-row" key={p.id} style={deceasedStyle(p.status)}>
       <button className="member-main" onClick={() => openPerson(p.id)}>
         <Avatar person={p} photos={photos} />
         <span>
@@ -1859,6 +1911,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                     : ""}
                   .
                 </p>
+                <div ref={treeScreenRef} className={"tree-screen" + (treeFullscreen ? " is-fullscreen" : "")}>
                 <div
                   className="tree-viewport"
                   ref={treeRef}
@@ -1970,7 +2023,9 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                               height="92"
                               rx="14"
                               fill={
-                                p.id === selected
+                                p.status === "deceased"
+                                  ? deceasedColor
+                                  : p.id === selected
                                   ? "#b9f1d6"
                                   : n.focused
                                     ? "#e2ffed"
@@ -2043,10 +2098,10 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                                 ? p.name.slice(0, 18) + "…"
                                 : p.name}
                             </text>
-                            <text x="12" y="79" fill="#748275" fontSize="11">
+                            <text x="12" y="79" fill={p.status === "deceased" ? "#202020" : "#748275"} fontSize="11">
                               {p.birth.slice(0, 4) || "?"}
                               {p.status === "deceased"
-                                ? " – " + (p.death.slice(0, 4) || "?")
+                                ? " – " + (p.death.slice(0, 4) || "?") + " · Wafat"
                                 : ""}
                             </text>
                           </g>
@@ -2100,6 +2155,10 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                 </div>
                 <div className="tree-toolbar">
                   <span className="muted">Cubit dua jari untuk zoom · geser bagan</span>
+                  <button type="button" className="secondary" aria-label={treeFullscreen ? "Keluar layar penuh" : "Layar penuh"} aria-pressed={treeFullscreen} onClick={() => void toggleTreeFullscreen()}>
+                    {treeFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    {treeFullscreen ? "Keluar" : "Layar penuh"}
+                  </button>
                   <IconButton
                     label="Perkecil bagan"
                     onClick={() => setScale((s) => Math.max(0.0001, s / 1.4))}
@@ -2121,6 +2180,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   >
                     <ZoomIn />
                   </IconButton>
+                </div>
+                <div className="status-legend"><span style={{backgroundColor: deceasedColor}} /> Sudah wafat</div>
                 </div>
                 <button
                   className="secondary full"
@@ -2271,7 +2332,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         )}
         {page === "profile" && person && (
           <>
-            <section className="card profile-top">
+            <section className="card profile-top" style={deceasedStyle(person.status)}>
+              {person.status === "deceased" && <span className="badge">Sudah wafat</span>}
               {person.photoId && photos[person.photoId] ? <button type="button" className="profile-photo-button" aria-label={"Perbesar foto " + person.name} onClick={() => setViewPhoto({src:photos[person.photoId!],name:person.name})}><Avatar person={person} photos={photos} size="large" /></button> : <Avatar person={person} photos={photos} size="large" />}
               {viewPhoto && <PhotoViewer src={viewPhoto.src} name={viewPhoto.name} close={() => setViewPhoto(null)} />}
               <h2>{person.name}</h2>
@@ -2672,6 +2734,13 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         )}
         {page === "settings" && (
           <>
+            <section className="card">
+              <h2>Warna anggota yang sudah wafat</h2>
+              <p>Warna berlaku pada pohon, daftar anggota, dan profil. Disimpan di browser perangkat ini.</p>
+              <label>Pilih warna <input type="color" value={deceasedColor} onChange={e => changeDeceasedColor(e.target.value)} /></label>
+              <div className="deceased-preview" style={{backgroundColor: deceasedColor}}>Contoh anggota · Sudah wafat</div>
+              <button type="button" className="secondary" onClick={() => changeDeceasedColor("#fce4ec")}>Kembalikan merah muda</button>
+            </section>
             <section className="card"><SettingRow icon={<Users />} title="Bagikan tautan keluarga" text="Tautan untuk pengunjung dan anggota keluarga" onClick={() => { window.dispatchEvent(new Event("family-share-open")); }} /></section>
             <section className="card">
               <h2>Identitas keluarga</h2>
