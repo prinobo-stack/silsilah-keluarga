@@ -1,3 +1,4 @@
+import Agenda from "./Agenda";
 import Kinship from "./Kinship";
 import DataChecks from "./DataChecks";
 import {useAppearance, AppearanceSettings} from "./Appearance";
@@ -103,6 +104,7 @@ const titles = {
   trash: "Sampah",
   checks: "Pemeriksaan data",
   kinship: "Cari hubungan keluarga",
+  agenda: "Agenda keluarga",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -1787,6 +1789,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                 Cari keluarga
               </button>
             </div>
+            {!publicView && <Agenda state={state} commit={commit} readOnly={readOnly} compact openAgenda={() => setPage("agenda")} openPerson={openPerson} />}
             <div className="home-grid">
               <section className="card">
                 <div className="section-heading">
@@ -2755,11 +2758,13 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "agenda" && !publicView && <Agenda state={state} commit={commit} readOnly={readOnly} openPerson={openPerson} />}
         {page === "kinship" && !publicView && <Kinship state={state} openPerson={openPerson} />}
         {page === "checks" && !publicView && <DataChecks state={state} openPerson={openPerson} />}
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<CalendarDays />} title="Agenda keluarga" text="Ulang tahun, pernikahan, dan acara keluarga" onClick={() => setPage("agenda")} /></section>
             <section className="card"><SettingRow icon={<Network />} title="Cari hubungan keluarga" text="Pilih dua anggota untuk melihat sebutan dan jalur hubungannya" onClick={() => setPage("kinship")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Pemeriksaan data" text="Tinjau kemungkinan ganda, tanggal, dan hubungan yang belum lengkap" onClick={() => setPage("checks")} /></section>
             <section className="card">

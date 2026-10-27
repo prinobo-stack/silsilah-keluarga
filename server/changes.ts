@@ -26,6 +26,7 @@ export function proposalChanges(before: Snapshot, after: Snapshot) {
     ["siblings", "Kakak-adik"],
     ["unions", "Pasangan"],
     ["memories", "Cerita"],
+    ["events", "Agenda keluarga"],
     ["media", "Foto"],
   ] as const) {
     const a = new Map<string, any>(

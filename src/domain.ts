@@ -94,6 +94,9 @@ export interface Memory {
   personIds: string[];
   mediaIds: string[];
 }
+export interface FamilyEvent {
+  id: string; title: string; date: string; time: string; location: string; notes: string;
+}
 export interface State {
   schemaVersion: 1;
   familyName: string;
@@ -104,6 +107,7 @@ export interface State {
   unions: Union[];
   media: Media[];
   memories: Memory[];
+  events?: FamilyEvent[];
   settings: {
     treeLineStyle?: TreeLineStyle;
     reminders: boolean;
@@ -217,6 +221,17 @@ export function validateState(s: State): void {
     !["curve", "straight", "elbow"].includes(s.settings.treeLineStyle)
   )
     throw Error("Model garis pohon tidak valid.");
+  if (s.events !== undefined) {
+    if (!Array.isArray(s.events) || s.events.length > 20000) throw Error("Daftar agenda tidak valid.");
+    ids(s.events);
+    for (const e of s.events) {
+      if (typeof e.title !== "string" || !e.title.trim() || e.title.length > 160 ||
+          typeof e.date !== "string" || e.date.length !== 10 || !validDate(e.date) ||
+          typeof e.time !== "string" || (e.time !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time)) ||
+          typeof e.location !== "string" || e.location.length > 500 ||
+          typeof e.notes !== "string" || e.notes.length > 5000) throw Error("Isian agenda keluarga tidak valid.");
+    }
+  }
   const people = ids(s.persons),
     media = ids(s.media);
   ids(s.parents);
