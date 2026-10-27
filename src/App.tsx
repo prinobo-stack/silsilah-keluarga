@@ -1,3 +1,4 @@
+import FamilyBook from "./FamilyBook";
 import ProfileShare from "./ProfileShare";
 import {memberFromHash} from "./profile-link";
 import PrivacySettings from "./PrivacySettings";
@@ -113,6 +114,7 @@ const titles = {
   stats: "Statistik keluarga",
   history: "Riwayat perubahan",
   privacy: "Privasi pengunjung",
+  book: "Buku keluarga",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -2793,6 +2795,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "book" && !publicView && <FamilyBook state={state} photos={photos} />}
         {page === "privacy" && !publicView && <PrivacySettings />}
         {page === "history" && !publicView && <History />}
         {page === "stats" && !publicView && <FamilyStats state={state} initialCategory={statsCategory} openPerson={openPerson} />}
@@ -2802,6 +2805,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<BookHeart />} title="Buku keluarga" text="Baca buku keluarga di aplikasi atau unduh PDF" onClick={() => setPage("book")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Privasi pengunjung" text="Atur foto, nama panggilan, dan akses publik · khusus admin" onClick={() => setPage("privacy")} /></section>
             <section className="card"><SettingRow icon={<ShieldCheck />} title="Riwayat perubahan" text="Catatan server tentang revisi, usulan, dan akun · khusus admin" onClick={() => setPage("history")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Statistik keluarga" text="Ringkasan anggota, usia, dan kelengkapan data" onClick={() => {setStatsCategory("all");setPage("stats");}} /></section>
