@@ -1,3 +1,4 @@
+import FamilyStats from "./FamilyStats";
 import Agenda from "./Agenda";
 import Kinship from "./Kinship";
 import DataChecks from "./DataChecks";
@@ -105,6 +106,7 @@ const titles = {
   checks: "Pemeriksaan data",
   kinship: "Cari hubungan keluarga",
   agenda: "Agenda keluarga",
+  stats: "Statistik keluarga",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -1128,6 +1130,7 @@ function PinEditor({ close, done }: { close: () => void; done: () => void }) {
   );
 }
 export default function App({ readOnly = false, publicView = false }: { readOnly?: boolean; publicView?: boolean } = {}) {
+  const [statsCategory, setStatsCategory] = useState("all");
   const appearance = useAppearance();
   const [viewPhoto, setViewPhoto] = useState<{src:string;name:string}|null>(null);
   const [state, setState] = useState<State | null>(null),
@@ -1790,6 +1793,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
               </button>
             </div>
             {!publicView && <Agenda state={state} commit={commit} readOnly={readOnly} compact openAgenda={() => setPage("agenda")} openPerson={openPerson} />}
+            {!publicView && <FamilyStats state={state} compact openStats={(category) => {setStatsCategory(category);setPage("stats");}} openPerson={openPerson} />}
             <div className="home-grid">
               <section className="card">
                 <div className="section-heading">
@@ -2758,12 +2762,14 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "stats" && !publicView && <FamilyStats state={state} initialCategory={statsCategory} openPerson={openPerson} />}
         {page === "agenda" && !publicView && <Agenda state={state} commit={commit} readOnly={readOnly} openPerson={openPerson} />}
         {page === "kinship" && !publicView && <Kinship state={state} openPerson={openPerson} />}
         {page === "checks" && !publicView && <DataChecks state={state} openPerson={openPerson} />}
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<Users />} title="Statistik keluarga" text="Ringkasan anggota, usia, dan kelengkapan data" onClick={() => {setStatsCategory("all");setPage("stats");}} /></section>
             <section className="card"><SettingRow icon={<CalendarDays />} title="Agenda keluarga" text="Ulang tahun, pernikahan, dan acara keluarga" onClick={() => setPage("agenda")} /></section>
             <section className="card"><SettingRow icon={<Network />} title="Cari hubungan keluarga" text="Pilih dua anggota untuk melihat sebutan dan jalur hubungannya" onClick={() => setPage("kinship")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Pemeriksaan data" text="Tinjau kemungkinan ganda, tanggal, dan hubungan yang belum lengkap" onClick={() => setPage("checks")} /></section>

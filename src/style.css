@@ -1449,3 +1449,5 @@ input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--appe
 .data-finding{border-top:1px solid #d4dfd5;padding:16px 0}.data-finding h3{color:inherit;margin:0 0 8px}.data-finding button{overflow-wrap:anywhere;max-width:100%}
 
 .kinship-result{margin-top:20px;border-top:1px solid #d4dfd5;padding-top:16px}.kinship-result h3{color:inherit}.kinship-result li{margin:10px 0;overflow-wrap:anywhere}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:16px 0}.stat-tile{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:14px;min-width:0}.stat-tile strong{font-size:26px}.stat-tile.selected{outline:2px solid var(--appearance-accent,#16634a)}.stats-members{padding-left:20px}.stats-members button{max-width:100%;overflow-wrap:anywhere;text-align:left}
