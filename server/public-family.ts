@@ -1,9 +1,12 @@
+import {DEFAULT_PUBLIC_PRIVACY,type PublicPrivacy} from "../src/public-privacy.ts";
 import { emptyState, type State } from '../src/domain.ts';
 
 // Construct public data from a whitelist; never serialize private records directly.
-export function publicFamily(full: State): State {
-  const s=emptyState();s.familyName=full.familyName;
-  s.persons=full.persons.filter(p=>!p.deletedAt).map(p=>({id:p.id,name:p.name,nickname:p.nickname,sex:p.sex,photoId:p.photoId,
+export function publicFamily(full: State, privacy:PublicPrivacy=DEFAULT_PUBLIC_PRIVACY): State {
+  const s=emptyState();
+  if(!privacy.enabled)return s;
+  s.familyName=full.familyName;
+  s.persons=full.persons.filter(p=>!p.deletedAt).map(p=>({id:p.id,name:p.name,nickname:privacy.nicknames?p.nickname:"",sex:p.sex,photoId:privacy.photos?p.photoId:null,
     birth:'',birthApprox:false,death:'',status:p.status,place:'',notes:'',deletedAt:null,createdAt:'1970-01-01T00:00:00.000Z',updatedAt:'1970-01-01T00:00:00.000Z',nik:'',address:'',addressMode:'manual'}));
   const ids=new Set(s.persons.map(p=>p.id));
   s.rootId=full.rootId && ids.has(full.rootId)?full.rootId:s.persons[0]?.id??null;

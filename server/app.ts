@@ -1,3 +1,4 @@
+import {DEFAULT_PUBLIC_PRIVACY,parsePublicPrivacy,privacyKey} from "../src/public-privacy.ts";
 import {historyCursor} from "../src/audit-history.ts";
 import {
   createServer,
@@ -115,6 +116,7 @@ export async function createFamilyServer(options: {
     CREATE TABLE IF NOT EXISTS invites(code_hash TEXT PRIMARY KEY, role TEXT NOT NULL CHECK(role IN ('editor','viewer')), expires BIGINT NOT NULL, used_by TEXT REFERENCES users(id), created_by TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE IF NOT EXISTS family(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, full_zip BYTEA NOT NULL, view_zip BYTEA NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE IF NOT EXISTS proposals(id TEXT PRIMARY KEY,actor TEXT NOT NULL REFERENCES users(id),base_revision INTEGER NOT NULL,version INTEGER NOT NULL,full_zip BYTEA NOT NULL,view_zip BYTEA NOT NULL,status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')),note TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,published_revision INTEGER);
+    CREATE TABLE IF NOT EXISTS public_privacy(id INTEGER PRIMARY KEY CHECK(id=1), config TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS audit(id BIGSERIAL PRIMARY KEY, actor TEXT NOT NULL, action TEXT NOT NULL, at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS login_limits(key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, expires BIGINT NOT NULL);
   `));
@@ -174,7 +176,7 @@ export async function createFamilyServer(options: {
     });
     res.end(JSON.stringify(value));
   };
-  let publicCache: {revision: number; bytes: Promise<Uint8Array>} | undefined;
+  let publicCache: {policy:string; revision: number; bytes: Promise<Uint8Array>} | undefined;
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -191,6 +193,23 @@ export async function createFamilyServer(options: {
       if (path.startsWith("/api/") && !["GET", "HEAD"].includes(method)) {
         if (req.headers.origin !== origin.origin)
           fail(403, "Asal permintaan tidak diizinkan.");
+      }
+      if (path === "/api/privacy" && (method === "GET" || method === "POST")) {
+        const owner = await auth(req,"owner");
+        if (method === "POST") {
+          let policy;
+          try { policy = parsePublicPrivacy(await json(req)); }
+          catch { fail(400,"Pengaturan privasi tidak valid."); }
+          await db.exec("BEGIN IMMEDIATE");
+          try {
+            await db.prepare("INSERT INTO public_privacy(id,config) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET config=excluded.config").run(JSON.stringify(policy!));
+            await audit(owner.id,"privacy");
+            await db.exec("COMMIT");publicCache=undefined;
+          } catch(e) {await db.exec("ROLLBACK");throw e;}
+          return respond(res,200,policy!);
+        }
+        const stored = await db.prepare("SELECT config FROM public_privacy WHERE id=1").get() as {config:string}|undefined;
+        return respond(res,200,stored?parsePublicPrivacy(JSON.parse(stored.config)):DEFAULT_PUBLIC_PRIVACY);
       }
       if (method === "GET" && path === "/api/history") {
         await auth(req, "owner");
@@ -211,18 +230,23 @@ export async function createFamilyServer(options: {
       if (["/api/join", "/api/invites", "/api/revoke-invites"].includes(path))
         fail(410, "Pendaftaran dengan kode sudah dihapus. Akun keluarga dibuat oleh admin.");
       if (method === "GET" && path === "/api/public/snapshot") {
+        const stored = await db.prepare("SELECT config FROM public_privacy WHERE id=1").get() as {config:string}|undefined;
+        const privacy = stored?parsePublicPrivacy(JSON.parse(stored.config)):DEFAULT_PUBLIC_PRIVACY;
+        if(!privacy.enabled)return respond(res,403,{error:"Akses pohon publik dinonaktifkan oleh admin. Silakan masuk dengan akun keluarga."});
+        const policy=privacyKey(privacy);
+
         const row = (await db.prepare("SELECT revision,full_zip FROM family WHERE id=1").get()) as {revision:number;full_zip:Uint8Array} | undefined;
         const revision = row?.revision ?? 0;
-        if (!publicCache || publicCache.revision !== revision) {
-          publicCache = {revision, bytes: (async () => {
+        if (!publicCache || publicCache.revision !== revision || publicCache.policy !== policy) {
+          publicCache = {revision, policy, bytes: (async () => {
             const full = row ? await inspectBackup(row.full_zip) : {state:emptyState(),files:{} as Record<string,string>};
-            const safe = publicFamily(full.state);
+            const safe = publicFamily(full.state,privacy);
             return createBackup(safe, async id => full.files[id]);
           })()};
         }
         let bytes: Uint8Array;
         try { bytes = await publicCache.bytes; } catch(e) {publicCache=undefined;throw e;}
-        res.writeHead(200, {"Content-Type":"application/zip", "X-Family-Revision":String(revision), "X-Family-Role":"viewer"});
+        res.writeHead(200, {"Content-Type":"application/zip", "X-Family-Revision":String(revision), "X-Family-Privacy":policy, "X-Family-Role":"viewer"});
         res.end(bytes);
         return;
       }

@@ -1,26 +1,28 @@
 import {useEffect,useState} from 'react';
 import App from './App';
-import {setWorkspace,completeSync,syncSnapshot} from './storage';
+import {setWorkspace,completeSync,syncSnapshot,forgetWorkspace} from './storage';
 import {inspectBackup} from './backup';
 
 export function PublicTree({login}:{login:()=>void}) {
  const [ready,setReady]=useState(false),[error,setError]=useState('');
  useEffect(()=>{
-  let active=true,inFlight=false,revision=-1;
+  let active=true,inFlight=false,revision=-1,policy="";
   setWorkspace('public-tree','viewer');
   async function refresh(){
    if(inFlight)return;inFlight=true;
    try{
     const r=await fetch('/api/public/snapshot',{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(30000)});
+    if(r.status===403){if(active){setReady(false);await forgetWorkspace();}revision=-1;policy="";throw Error('Akses pohon publik dinonaktifkan oleh admin. Silakan masuk dengan akun keluarga.');}
     if(!r.ok || !r.headers.get('content-type')?.includes('application/zip'))throw Error('Pohon publik belum dapat diambil. Pastikan server dan internet aktif.');
     const rev=Number(r.headers.get('X-Family-Revision'));
     if(!Number.isSafeInteger(rev)||rev<0)throw Error('Revisi pohon publik tidak valid.');
-    if(rev!==revision){
+    const nextPolicy=r.headers.get("X-Family-Privacy")??"";
+    if(rev!==revision||policy!==nextPolicy){
      const data=await inspectBackup(new Uint8Array(await r.arrayBuffer()));
      if(!active)return;
      const local=await syncSnapshot();if(!active)return;
      await completeSync(rev,local.meta.generation,data);
-     revision=rev;if(active){setReady(true);window.dispatchEvent(new Event('family-refreshed'));}
+     revision=rev;policy=nextPolicy;if(active){setReady(true);window.dispatchEvent(new Event('family-refreshed'));}
     }
     if(active)setError('');
    }catch(e){if(active)setError((e as Error).message);}finally{inFlight=false;}
