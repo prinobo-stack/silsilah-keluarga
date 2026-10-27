@@ -1,3 +1,5 @@
+import ProfileShare from "./ProfileShare";
+import {memberFromHash} from "./profile-link";
 import PrivacySettings from "./PrivacySettings";
 import History from "./History";
 import FamilyStats from "./FamilyStats";
@@ -1254,6 +1256,29 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     left: number;
     top: number;
   } | null>(null);
+  const linkedProfile = useRef(memberFromHash(window.location.hash));
+  const linkedProfileOpened = useRef(false);
+  const missingProfileNotified = useRef(false);
+  useEffect(() => {
+    if (!state || !linkedProfile.current || linkedProfileOpened.current) return;
+    const p = active(state).find(p => p.id === linkedProfile.current);
+    if (p) {
+      linkedProfileOpened.current = true;
+      setSelected(p.id);setPage("profile");setNotice("");
+    } else if (!missingProfileNotified.current) {
+      missingProfileNotified.current = true;
+      setNotice("Profil pada tautan belum ditemukan di data yang tersedia. Tunggu sinkronisasi; profil mungkin telah dihapus atau tidak tersedia untuk akun ini.");
+    }
+  }, [state]);
+  useEffect(() => {
+    const follow = () => {
+      linkedProfile.current = memberFromHash(window.location.hash);
+      linkedProfileOpened.current = false;missingProfileNotified.current = false;
+      void hydrate();
+    };
+    window.addEventListener("hashchange",follow);
+    return () => window.removeEventListener("hashchange",follow);
+  }, []);
   async function hydrate() {
     setLoading(true);
     setError("");
@@ -2407,6 +2432,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
               </div>
             </section>
             <section className="card">
+              {publicView && <p>Anda melihat profil publik. Biodata pribadi hanya tersedia sesuai hak akses akun keluarga.</p>}
+              <ProfileShare key={person.id} id={person.id} name={person.name} />
               <h2>Biodata</h2>
               <dl className="biodata">
                 <div>
