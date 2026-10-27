@@ -1,3 +1,4 @@
+import Kinship from "./Kinship";
 import DataChecks from "./DataChecks";
 import {useAppearance, AppearanceSettings} from "./Appearance";
 import FamilySuggestions from "./FamilySuggestions";
@@ -101,6 +102,7 @@ const titles = {
   memories: "Album kenangan",
   trash: "Sampah",
   checks: "Pemeriksaan data",
+  kinship: "Cari hubungan keluarga",
 };
 type Page = keyof typeof titles;
 type Attach = {
@@ -2753,10 +2755,12 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
             )}
           </>
         )}
+        {page === "kinship" && !publicView && <Kinship state={state} openPerson={openPerson} />}
         {page === "checks" && !publicView && <DataChecks state={state} openPerson={openPerson} />}
         {page === "settings" && (
           <>
             <AppearanceSettings appearance={appearance} />
+            <section className="card"><SettingRow icon={<Network />} title="Cari hubungan keluarga" text="Pilih dua anggota untuk melihat sebutan dan jalur hubungannya" onClick={() => setPage("kinship")} /></section>
             <section className="card"><SettingRow icon={<Users />} title="Pemeriksaan data" text="Tinjau kemungkinan ganda, tanggal, dan hubungan yang belum lengkap" onClick={() => setPage("checks")} /></section>
             <section className="card">
               <h2>Warna anggota yang sudah wafat</h2>
