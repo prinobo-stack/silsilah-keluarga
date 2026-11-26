@@ -1,4 +1,5 @@
 import {flushSync} from "react-dom";
+import TreeMemberTip from "./TreeMemberTip";
 import FamilyProfile from "./FamilyProfile";
 import FamilyTimeline from "./FamilyTimeline";
 import {searchMembers} from "./member-search";
@@ -1202,6 +1203,8 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
   const touches = useRef(new Map<number, {x: number; y: number}>());
   const pinch = useRef<{distance: number; scale: number; x: number; y: number} | null>(null);
   const gestureMoved = useRef(false);
+  const [tip, setTip] = useState<{id: string; anchor: SVGGElement} | null>(null);
+  const [zoomRoom, setZoomRoom] = useState(false);
   const treeRef = useRef<HTMLDivElement>(null);
   const treeScreenRef = useRef<HTMLDivElement>(null);
   const [treeFullscreen, setTreeFullscreen] = useState(false);
@@ -1460,6 +1463,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     setPhotos((v) => ({ ...v, [id]: data }));
   const [treeFocusRequest, setTreeFocusRequest] = useState(0);
   function focusTreePerson(id: string) {
+    setTip(null);
     setTreeFocusRequest((v) => v + 1);
     setSelected(id);
     setDirection("both");
@@ -1574,11 +1578,20 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     const rect = el.getBoundingClientRect();
     const x = clientX === undefined ? el.clientWidth / 2 : clientX - rect.left - el.clientLeft;
     const y = clientY === undefined ? el.clientHeight / 2 : clientY - rect.top - el.clientTop;
-    const left = (el.scrollLeft + x) * next / current - x;
-    const top = (el.scrollTop + y) * next / current - y;
-    flushSync(() => setScale(next));
-    el.scrollTo(left, top);
+    const before = svg.getBoundingClientRect();
+    const px = rect.left + el.clientLeft + x, py = rect.top + el.clientTop + y;
+    const gx = (px - before.left) / current, gy = (py - before.top) / current;
+    flushSync(() => { setZoomRoom(true); setScale(next); });
+    const after = svg.getBoundingClientRect();
+    el.scrollBy({left: after.left + gx * next - px, top: after.top + gy * next - py, behavior: "instant"});
   }
+  useEffect(() => {
+    if (!tip) return;
+    function dismiss(e: KeyboardEvent) { if (e.key === "Escape") setTip(null); }
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [tip]);
+  useEffect(() => { setTip(null); }, [selected, page, direction, orientation, treeFullscreen, collapsedBranches]);
   const hasTree = Boolean(graph?.nodes.length);
   useEffect(() => {
     const el = treeRef.current;
@@ -1594,6 +1607,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     return () => el.removeEventListener("wheel", wheel);
   }, [page, hasTree, locked, loading]);
   function centerTree() {
+    setZoomRoom(false);
     setScale(1);
     requestAnimationFrame(() => {
       const el = treeRef.current,
@@ -1607,6 +1621,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     });
   }
   function fitTree() {
+    setZoomRoom(false);
     const el = treeRef.current;
     if (!el || !graph) return;
     const next = Math.max(
@@ -2018,16 +2033,17 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   className="tree-viewport"
                   ref={treeRef}
                   onPointerDown={(e) => {
+                    setTip(null);
                     const el = treeRef.current!;
                     touches.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
                     if (touches.current.size === 1) gestureMoved.current = false;
                     if (!(e.target as Element).closest("[data-node]") || touches.current.size > 1) el.setPointerCapture(e.pointerId);
                     if (touches.current.size === 2) {
                       const [a,b] = [...touches.current.values()];
-                      const rect = el.getBoundingClientRect();
+                      const rect = el.querySelector("svg")!.getBoundingClientRect();
                       pinch.current = {distance: Math.max(1, Math.hypot(a.x-b.x,a.y-b.y)), scale,
-                        x: (el.scrollLeft+(a.x+b.x)/2-rect.left)/scale,
-                        y: (el.scrollTop+(a.y+b.y)/2-rect.top)/scale};
+                        x: ((a.x+b.x)/2-rect.left)/scale,
+                        y: ((a.y+b.y)/2-rect.top)/scale};
                       gestureMoved.current = true; drag.current = null;
                     } else if (touches.current.size === 1) {
                       drag.current = {x:e.clientX,y:e.clientY,left:el.scrollLeft,top:el.scrollTop};
@@ -2040,9 +2056,10 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                     if (pinch.current && touches.current.size === 2) {
                       const [a,b] = [...touches.current.values()], base = pinch.current;
                       const next = Math.min(3,Math.max(0.0001,base.scale*Math.hypot(a.x-b.x,a.y-b.y)/base.distance));
-                      const rect = el.getBoundingClientRect();
-                      setScale(next);
-                      requestAnimationFrame(() => {el.scrollLeft=base.x*next-((a.x+b.x)/2-rect.left);el.scrollTop=base.y*next-((a.y+b.y)/2-rect.top);});
+                      flushSync(() => { setZoomRoom(true); setScale(next); });
+                      const rect = el.querySelector("svg")!.getBoundingClientRect();
+                      el.scrollBy({left: rect.left + base.x * next - (a.x+b.x)/2,
+                        top: rect.top + base.y * next - (a.y+b.y)/2, behavior: "instant"});
                     } else if (drag.current) {
                       const d=drag.current;
                       if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>6) gestureMoved.current=true;
@@ -2053,6 +2070,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   onPointerCancel={(e) => { touches.current.delete(e.pointerId); pinch.current=null; drag.current=null; }}
                   onClickCapture={(e) => {if(gestureMoved.current){e.preventDefault();e.stopPropagation();}}}
                 >
+                  <div className={"tree-canvas" + (zoomRoom ? " with-zoom-room" : "")}>
                   <svg
                     width={graph.width * scale}
                     height={graph.height * scale}
@@ -2106,6 +2124,15 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                         <g key={n.id}>
                           <g
                             data-node="true"
+                            aria-describedby={tip?.id === p.id ? "tree-member-tip" : undefined}
+                            onPointerEnter={e => {
+                              if (e.pointerType === "mouse" && !e.buttons) setTip({id: p.id, anchor: e.currentTarget});
+                            }}
+                            onPointerLeave={() => setTip(null)}
+                            onFocus={e => {
+                              if (e.currentTarget.matches(":focus-visible")) setTip({id: p.id, anchor: e.currentTarget});
+                            }}
+                            onBlur={() => setTip(null)}
                             data-focus-card={n.focused ? "true" : "false"}
                             transform={`translate(${n.x},${n.y})`}
                             role="button"
@@ -2255,7 +2282,10 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                       );
                     })}
                   </svg>
+                  </div>
                 </div>
+                {tip && graphPoints.has(tip.id) && <TreeMemberTip anchor={tip.anchor} person={peopleById.get(tip.id)!}
+                  state={state} publicView={publicView} scale={scale} />}
                 <div className="tree-toolbar">
                   <span className="muted">Zoom pohon {Math.round(scale * 100)}% · Cubit atau gunakan roda mouse</span>
                   <button type="button" className="secondary" aria-label={treeFullscreen ? "Keluar layar penuh" : "Layar penuh"} aria-pressed={treeFullscreen} onClick={() => void toggleTreeFullscreen()}>
