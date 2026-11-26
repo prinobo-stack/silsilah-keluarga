@@ -1,7 +1,7 @@
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { treeEdgePath } from "./tree-lines";
-import { treeGraph, type State, type TreeDirection } from "./domain";
+import { treeGraph, type State, type TreeDirection, type TreeOrientation } from "./domain";
 export async function exportPdf(
   s: State,
   focus: string,
@@ -10,8 +10,9 @@ export async function exportPdf(
   size: "A4" | "A3",
   landscape: boolean,
   collapsed: ReadonlySet<string> = new Set(),
+  orientation: TreeOrientation = "down",
 ) {
-  const graph = treeGraph(s, focus, direction, depth, collapsed);
+  const graph = treeGraph(s, focus, direction, depth, collapsed, orientation);
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const fontBytes = await (
@@ -92,7 +93,7 @@ export async function exportPdf(
         )
           continue;
         page.drawSvgPath(
-          treeEdgePath(e, a, b, s.settings.treeLineStyle ?? "curve"),
+          treeEdgePath(e, a, b, s.settings.treeLineStyle ?? "curve", orientation),
           {
             x: margin - (40 + tx * tileW) * scale,
             y: h - 90 + (50 + ty * tileH) * scale,
@@ -153,7 +154,9 @@ export async function exportPdf(
           );
       }
       page.drawText(
-        "Tegak: orang tua • Putus: adopsi • Mendatar: pasangan • Titik: saudara",
+        orientation === "right"
+          ? "Mendatar: orang tua • Putus: adopsi • Tegak: pasangan • Titik: saudara"
+          : "Tegak: orang tua • Putus: adopsi • Mendatar: pasangan • Titik: saudara",
         { x: margin, y: 34, size: 8, font },
       );
       page.drawText(

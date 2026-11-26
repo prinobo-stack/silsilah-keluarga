@@ -572,6 +572,7 @@ export function upcoming(s: State, now = new Date()) {
     })
     .sort((a, b) => a.days - b.days);
 }
+export type TreeOrientation = "down" | "right";
 export type TreeDirection = "all" | "both" | "ancestors" | "descendants";
 export interface TreeNode {
   id: string;
@@ -596,6 +597,7 @@ export function treeGraph(
   direction: TreeDirection,
   depth: number,
   collapsed: ReadonlySet<string> = new Set(),
+  orientation: TreeOrientation = "down",
 ) {
   const people = active(s),
     byId = new Map(people.map((p) => [p.id, p]));
@@ -753,7 +755,7 @@ export function treeGraph(
     min = Math.min(min, l);
     max = Math.max(max, l);
   }
-  // Keep each family's descendants within its own horizontal interval.
+  // Keep each family's descendants within its own interval across the generation axis.
   // Same-generation spouses form one layout unit; shared children still remain one person.
   const representative = new Map([...visible].map((id) => [id, id]));
   const find = (id: string): string => {
@@ -804,8 +806,10 @@ export function treeGraph(
   }
   for (const unit of units.values()) owners.get(unit.id)?.children.push(unit);
   const sortedUnits = [...units.values()].sort((a, b) => a.level - b.level);
+  const horizontal = orientation === "right";
   const branchGap = 76,
-    memberStep = 184;
+    memberStep = horizontal ? 120 : 184,
+    generationStep = horizontal ? 224 : 155;
   for (const unit of [...sortedUnits].reverse()) {
     const ownWidth = unit.members.length * memberStep - 28;
     const descendantsWidth =
@@ -814,7 +818,8 @@ export function treeGraph(
     unit.width = Math.max(ownWidth, descendantsWidth);
   }
   const roots = sortedUnits.filter((u) => !owners.has(u.id));
-  let nextLeft = 40;
+  const breadthMargin = horizontal ? 50 : 40;
+  let nextLeft = breadthMargin;
   for (const root of roots) {
     root.left = nextLeft;
     nextLeft += root.width + 110;
@@ -825,18 +830,20 @@ export function treeGraph(
     const unit = placement[i];
     const ownWidth = unit.members.length * memberStep - 28;
     const ownLeft = unit.left + (unit.width - ownWidth) / 2;
-    unit.members.forEach((id, index) =>
+    unit.members.forEach((id, index) => {
+      const across = ownLeft + index * memberStep;
+      const along = (unit.level - min) * generationStep;
       nodes.push({
         id,
         personId: id,
-        x: ownLeft + index * memberStep,
-        y: 50 + (unit.level - min) * 155,
+        x: horizontal ? 40 + along : across,
+        y: horizontal ? across : 50 + along,
         label: byId.get(id)!.name,
         focused: ancestors.has(id) || descendants.has(id),
         childCount: new Set(children.get(id) ?? []).size,
         collapsed: collapsed.has(id),
-      }),
-    );
+      });
+    });
     const childWidth =
       unit.children.reduce((sum, c) => sum + c.width, 0) +
       Math.max(0, unit.children.length - 1) * branchGap;
@@ -847,7 +854,7 @@ export function treeGraph(
       placement.push(child);
     }
   }
-  const width = Math.max(600, nextLeft - 110 + 40);
+  const breadth = nextLeft - 110 + breadthMargin;
   for (const l of parentLinks)
     if (visible.has(l.parentId) && visible.has(l.childId))
       edges.push({
@@ -877,8 +884,8 @@ export function treeGraph(
   return {
     nodes,
     edges,
-    width,
-    height: (max - min + 1) * 155 + 65,
+    width: horizontal ? Math.max(600, 236 + (max - min) * generationStep) : Math.max(600, breadth),
+    height: horizontal ? breadth : (max - min + 1) * generationStep + 65,
     truncated: false,
     hiddenCount: totalNodes - visible.size,
     totalNodes,

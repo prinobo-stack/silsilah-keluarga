@@ -214,3 +214,21 @@ test("data rusak dan relasi putus ditolak", () => {
   n.persons.push(n.persons[0]);
   assert.throws(() => validateState(n), /duplikat/);
 });
+
+test("arah ke kanan menempatkan generasi pada kolom dan saudara pada baris terpisah", () => {
+  let s = addParent(family(), "a", "b", "biological");
+  s = addParent(s, "a", "c", "biological");
+  s = addParent(s, "b", "d", "biological");
+  const horizontal = treeGraph(s, "b", "all", 0, new Set(), "right");
+  const vertical = treeGraph(s, "b", "all", 0);
+  assert.deepEqual(horizontal.edges, vertical.edges);
+  const nodes = new Map(horizontal.nodes.map((node) => [node.id, node]));
+  const a = nodes.get("a")!, b = nodes.get("b")!, c = nodes.get("c")!, d = nodes.get("d")!;
+  assert.ok(a.x + 156 < b.x && b.x + 156 < d.x);
+  assert.equal(b.x, c.x);
+  assert.ok(Math.abs(b.y - c.y) > 92);
+  for (const node of horizontal.nodes) {
+    assert.ok(node.x >= 40 && node.x + 156 <= horizontal.width);
+    assert.ok(node.y >= 50 && node.y + 92 <= horizontal.height);
+  }
+});

@@ -75,6 +75,7 @@ import {
   uuid,
   validateState,
   type TreeDirection,
+  type TreeOrientation,
   type TreeLineStyle,
   type Person,
   type State,
@@ -1184,6 +1185,15 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     [scale, setScale] = useState(1),
     [pdfSize, setPdfSize] = useState<"A4" | "A3">("A4"),
     [landscape, setLandscape] = useState(true);
+  const [orientation, setOrientation] = useState<TreeOrientation>(() => {
+    try {
+      return localStorage.getItem("silsilah-tree-orientation") === "right" ? "right" : "down";
+    } catch { return "down"; }
+  });
+  function changeOrientation(value: TreeOrientation) {
+    setOrientation(value);
+    try { localStorage.setItem("silsilah-tree-orientation", value); } catch { /* Use the choice for this session. */ }
+  }
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1534,9 +1544,9 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
   const graph = useMemo(
     () =>
       state && selected
-        ? treeGraph(state, selected, direction, depth, collapsedBranches)
+        ? treeGraph(state, selected, direction, depth, collapsedBranches, orientation)
         : null,
-    [state, selected, direction, depth, collapsedBranches],
+    [state, selected, direction, depth, collapsedBranches, orientation],
   );
   const graphPoints = useMemo(
     () => new Map(graph?.nodes.map((n) => [n.id, n]) ?? []),
@@ -1590,7 +1600,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
         if (direction === "all") fitTree();
         else centerTree();
       });
-  }, [selected, direction, page, treeFocusRequest]);
+  }, [selected, direction, orientation, page, treeFocusRequest]);
   const birthdays = useMemo(() => (state ? upcoming(state) : []), [state]);
   if (loading)
     return (
@@ -2036,6 +2046,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                               a,
                               b,
                               state.settings.treeLineStyle ?? "curve",
+                              orientation,
                             )}
                             fill="none"
                             stroke={
@@ -2350,6 +2361,13 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                     <option value="both">Leluhur dan keturunan</option>
                     <option value="ancestors">Leluhur</option>
                     <option value="descendants">Keturunan</option>
+                  </select>
+                </label>
+                <label>
+                  Arah pohon
+                  <select value={orientation} onChange={(e) => changeOrientation(e.target.value as TreeOrientation)}>
+                    <option value="down">Ke bawah</option>
+                    <option value="right">Ke kanan</option>
                   </select>
                 </label>
                 <label>
@@ -3245,6 +3263,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   pdfSize,
                   landscape,
                   collapsedBranches,
+                  orientation,
                 );
                 const saved = await saveFile(
                   "Silsilah_Keluarga.pdf",
