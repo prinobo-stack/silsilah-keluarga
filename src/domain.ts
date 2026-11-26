@@ -572,6 +572,67 @@ export function upcoming(s: State, now = new Date()) {
     })
     .sort((a, b) => a.days - b.days);
 }
+/** Reorder only slots belonging to the same group of siblings, independently of tree focus. */
+export function peopleInSiblingOrder(s: State): Person[] {
+  const people = active(s);
+  const peers = new Map(people.map(p => [p.id, [] as string[]]));
+  const older = new Map<string, string[]>();
+  function connect(a: string, b: string) {
+    if (!peers.has(a) || !peers.has(b)) return;
+    peers.get(a)!.push(b);
+    peers.get(b)!.push(a);
+  }
+  const firstChild = new Map<string, string>();
+  for (const {parentId, childId} of s.parents) {
+    if (!peers.has(parentId) || !peers.has(childId)) continue;
+    const first = firstChild.get(parentId);
+    if (first) connect(first, childId);
+    else firstChild.set(parentId, childId);
+  }
+  for (const {olderId, youngerId} of s.siblings ?? []) {
+    connect(olderId, youngerId);
+    if (!older.has(youngerId)) older.set(youngerId, []);
+    older.get(youngerId)!.push(olderId);
+  }
+
+  const index = new Map(people.map((p, i) => [p.id, i]));
+  const result = [...people];
+  const seen = new Set<string>();
+  for (const person of people) {
+    if (seen.has(person.id) || !peers.get(person.id)!.length) continue;
+    const group = [person.id];
+    seen.add(person.id);
+    for (let i = 0; i < group.length; i++) {
+      for (const id of peers.get(group[i])!) {
+        if (seen.has(id)) continue;
+        group.push(id);
+        seen.add(id);
+      }
+    }
+    const slots = group.map(id => index.get(id)!).sort((a, b) => a - b);
+    const byBirth = slots.map(i => people[i]).sort((a, b) =>
+      Number(!a.birth) - Number(!b.birth) || a.birth.localeCompare(b.birth)
+    );
+    // Visit declared older siblings first, including chains with missing dates.
+    const placed = new Set<string>();
+    let nextSlot = 0;
+    for (const p of byBirth) {
+      const stack: [string, boolean][] = [[p.id, false]];
+      while (stack.length) {
+        const [id, place] = stack.pop()!;
+        if (place) {
+          result[slots[nextSlot++]] = people[index.get(id)!];
+        } else if (index.has(id) && !placed.has(id)) {
+          placed.add(id);
+          stack.push([id, true]);
+          for (const previous of older.get(id) ?? []) stack.push([previous, false]);
+        }
+      }
+    }
+  }
+  return result;
+}
+
 export type TreeOrientation = "down" | "right";
 export type TreeDirection = "all" | "both" | "ancestors" | "descendants";
 export interface TreeNode {
@@ -599,7 +660,7 @@ export function treeGraph(
   collapsed: ReadonlySet<string> = new Set(),
   orientation: TreeOrientation = "down",
 ) {
-  const people = active(s),
+  const people = peopleInSiblingOrder(s),
     byId = new Map(people.map((p) => [p.id, p]));
   const children = new Map<string, string[]>(),
     parents = new Map<string, string[]>();
@@ -781,8 +842,10 @@ export function treeGraph(
     width: number;
     left: number;
   };
+  const rank = new Map(people.map((p, i) => [p.id, i]));
   const units = new Map<string, Unit>();
-  for (const id of visible) {
+  for (const {id} of people) {
+    if (!visible.has(id)) continue;
     const key = find(id);
     if (!units.has(key))
       units.set(key, {
@@ -796,15 +859,53 @@ export function treeGraph(
     units.get(key)!.members.push(id);
   }
   const owners = new Map<string, Unit>();
+  const branchRank = new Map<string, number>();
   for (const l of parentLinks) {
     if (!visible.has(l.parentId) || !visible.has(l.childId)) continue;
     const parent = units.get(find(l.parentId))!,
       child = units.get(find(l.childId))!;
     if (parent === child || parent.level >= child.level) continue;
+    const childRank = rank.get(l.childId)!;
     const current = owners.get(child.id);
-    if (!current || parent.level > current.level) owners.set(child.id, parent);
+    if (!current || parent.level > current.level) {
+      owners.set(child.id, parent);
+      branchRank.set(child.id, childRank);
+    } else if (current === parent) {
+      branchRank.set(child.id, Math.min(branchRank.get(child.id)!, childRank));
+    }
+  }
+  // Place a sibling with no visible parent beside its sibling's branch without inventing an edge.
+  const adjacent = new Map<Unit, {unit: Unit; member: string}[]>();
+  for (const {olderId, youngerId} of s.siblings ?? []) {
+    if (!visible.has(olderId) || !visible.has(youngerId)) continue;
+    const a = units.get(find(olderId))!, b = units.get(find(youngerId))!;
+    if (a === b || a.level !== b.level) continue;
+    if (!adjacent.has(a)) adjacent.set(a, []);
+    if (!adjacent.has(b)) adjacent.set(b, []);
+    adjacent.get(a)!.push({unit: b, member: youngerId});
+    adjacent.get(b)!.push({unit: a, member: olderId});
+  }
+  const anchored = [...units.values()].filter(unit => owners.has(unit.id) && adjacent.has(unit));
+  for (let i = 0; i < anchored.length; i++) {
+    const current = anchored[i];
+    for (const {unit, member} of adjacent.get(current) ?? []) {
+      if (owners.has(unit.id)) continue;
+      owners.set(unit.id, owners.get(current.id)!);
+      branchRank.set(unit.id, rank.get(member)!);
+      anchored.push(unit);
+    }
   }
   for (const unit of units.values()) owners.get(unit.id)?.children.push(unit);
+  // Anchor a married branch on the child in that family, even if the spouse was entered first.
+  const explicitSiblings = new Set((s.siblings ?? []).flatMap(l => [l.olderId, l.youngerId]));
+  for (const unit of units.values()) {
+    if (!branchRank.has(unit.id)) {
+      const anchor = unit.members.find(id => parents.has(id) || explicitSiblings.has(id));
+      branchRank.set(unit.id, rank.get(anchor ?? unit.members[0])!);
+    }
+  }
+  const byBranch = (a: Unit, b: Unit) => branchRank.get(a.id)! - branchRank.get(b.id)!;
+  for (const unit of units.values()) unit.children.sort(byBranch);
   const sortedUnits = [...units.values()].sort((a, b) => a.level - b.level);
   const horizontal = orientation === "right";
   const branchGap = 76,
@@ -817,7 +918,7 @@ export function treeGraph(
       Math.max(0, unit.children.length - 1) * branchGap;
     unit.width = Math.max(ownWidth, descendantsWidth);
   }
-  const roots = sortedUnits.filter((u) => !owners.has(u.id));
+  const roots = sortedUnits.filter((u) => !owners.has(u.id)).sort(byBranch);
   const breadthMargin = horizontal ? 50 : 40;
   let nextLeft = breadthMargin;
   for (const root of roots) {

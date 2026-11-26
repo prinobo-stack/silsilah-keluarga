@@ -232,3 +232,48 @@ test("arah ke kanan menempatkan generasi pada kolom dan saudara pada baris terpi
     assert.ok(node.y >= 50 && node.y + 92 <= horizontal.height);
   }
 });
+
+test("urutan kelahiran satu keluarga stabil saat fokus berganti, termasuk pohon publik", async () => {
+  const {publicFamily} = await import("../server/public-family.ts");
+  let s = family();
+  s.persons.push(person("pasangan", {birth: "1950"}), person("kembar"));
+  s.persons.find(p => p.id === "d")!.birth = "1980";
+  s.persons.find(p => p.id === "b")!.birth = "2000-04-18";
+  s.persons.find(p => p.id === "kembar")!.birth = "2000-04-18";
+  for (const id of ["b", "c", "kembar", "d"]) s = addParent(s, "a", id, "biological");
+  s = addSibling(s, "kembar", "b");
+  s.unions.push({id:"u", members:["b","pasangan"], status:"married", start:"", end:"", notes:""});
+  const guest = publicFamily(s);
+  assert.ok(guest.persons.every(p => p.birth === ""));
+  const expected = ["d", "kembar", "b", "c"];
+  for (const state of [s, guest]) {
+    for (const orientation of ["right","down"] as const) {
+      for (const focus of ["a", ...expected]) {
+        const {nodes} = treeGraph(state, focus, "both", 0, new Set(), orientation);
+        const axis = orientation === "right" ? "y" : "x";
+        const siblings = nodes.filter(n => expected.includes(n.id)).sort((a,b) => a[axis] - b[axis]);
+        assert.deepEqual(siblings.map(n => n.id), expected);
+      }
+    }
+  }
+});
+
+test("hubungan kakak-adik tanpa orang tua atau tanggal tetap berurutan", () => {
+  let s = addSibling(family(), "c", "a");
+  s = addSibling(s, "a", "b");
+  for (const orientation of ["right", "down"] as const) {
+    for (const focus of ["a", "b", "c"]) {
+      const {nodes} = treeGraph(s, focus, "both", 0, new Set(), orientation);
+      const axis = orientation === "right" ? "y" : "x";
+      const ids = nodes.sort((a,b) => a[axis] - b[axis]).map(n => n.id);
+      assert.deepEqual(ids, ["c","a","b"].filter(id => ids.includes(id)));
+    }
+  }
+});
+
+test("kakak tanpa orang tua terlihat sebelum adik dalam cabang yang sama", () => {
+  const s = addSibling(addParent(family(), "a", "b", "biological"), "c", "b");
+  const {nodes, edges} = treeGraph(s, "b", "both", 0);
+  assert.ok(nodes.find(n => n.id === "c")!.x < nodes.find(n => n.id === "b")!.x);
+  assert.ok(!edges.some(e => e.from === "a" && e.to === "c"));
+});

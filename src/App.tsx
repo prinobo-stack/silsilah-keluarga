@@ -1,3 +1,4 @@
+import {flushSync} from "react-dom";
 import FamilyProfile from "./FamilyProfile";
 import FamilyTimeline from "./FamilyTimeline";
 import {searchMembers} from "./member-search";
@@ -1564,6 +1565,34 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
       return next;
     });
   }
+  function zoomTree(factor: number, clientX?: number, clientY?: number) {
+    const el = treeRef.current;
+    const svg = el?.querySelector("svg");
+    if (!el || !svg) return;
+    const current = svg.width.baseVal.value / svg.viewBox.baseVal.width;
+    const next = Math.min(3, Math.max(0.0001, current * factor));
+    const rect = el.getBoundingClientRect();
+    const x = clientX === undefined ? el.clientWidth / 2 : clientX - rect.left - el.clientLeft;
+    const y = clientY === undefined ? el.clientHeight / 2 : clientY - rect.top - el.clientTop;
+    const left = (el.scrollLeft + x) * next / current - x;
+    const top = (el.scrollTop + y) * next / current - y;
+    flushSync(() => setScale(next));
+    el.scrollTo(left, top);
+  }
+  const hasTree = Boolean(graph?.nodes.length);
+  useEffect(() => {
+    const el = treeRef.current;
+    if (!el) return;
+    function wheel(event: WheelEvent) {
+      if (!event.deltaY || !event.cancelable) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? el!.clientHeight : 1;
+      const delta = Math.max(-240, Math.min(240, event.deltaY * unit));
+      zoomTree(Math.exp(-delta * 0.002), event.clientX, event.clientY);
+    }
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, [page, hasTree, locked, loading]);
   function centerTree() {
     setScale(1);
     requestAnimationFrame(() => {
@@ -2228,14 +2257,14 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   </svg>
                 </div>
                 <div className="tree-toolbar">
-                  <span className="muted">Cubit dua jari untuk zoom · geser bagan</span>
+                  <span className="muted">Zoom pohon {Math.round(scale * 100)}% · Cubit atau gunakan roda mouse</span>
                   <button type="button" className="secondary" aria-label={treeFullscreen ? "Keluar layar penuh" : "Layar penuh"} aria-pressed={treeFullscreen} onClick={() => void toggleTreeFullscreen()}>
                     {treeFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                     {treeFullscreen ? "Keluar" : "Layar penuh"}
                   </button>
                   <IconButton
                     label="Perkecil bagan"
-                    onClick={() => setScale((s) => Math.max(0.0001, s / 1.4))}
+                    onClick={() => zoomTree(1 / 1.4)}
                   >
                     <ZoomOut />
                   </IconButton>
@@ -2250,7 +2279,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
                   </IconButton>
                   <IconButton
                     label="Perbesar bagan"
-                    onClick={() => setScale((s) => Math.min(3, s * 1.4))}
+                    onClick={() => zoomTree(1.4)}
                   >
                     <ZoomIn />
                   </IconButton>
