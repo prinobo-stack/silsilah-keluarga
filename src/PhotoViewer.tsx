@@ -9,11 +9,10 @@ export default function PhotoViewer({src, name, close}: {src:string; name:string
   const closeButton = useRef<HTMLButtonElement>(null);
   useEffect(()=>{
     const old = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow="hidden"; closeButton.current?.focus();
+    closeButton.current?.focus();
     const key=(e:KeyboardEvent)=>{if(e.key==="Escape")close();};
     window.addEventListener("keydown",key);
-    return ()=>{document.body.style.overflow=overflow;window.removeEventListener("keydown",key);old?.focus();};
+    return ()=>{window.removeEventListener("keydown",key);old?.focus();};
   },[close]);
   const changeZoom=(value:number)=>{setZoom(Math.min(5,Math.max(1,value)));if(value<=1)setOffset({x:0,y:0});};
   return createPortal(<div role="dialog" aria-modal="true" aria-label={"Foto "+name} className="photo-viewer">

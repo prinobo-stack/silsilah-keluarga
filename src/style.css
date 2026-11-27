@@ -1132,7 +1132,7 @@ legend {
   letter-spacing: 12px;
   text-align: center;
 }
-body:has(.modal-backdrop) {
+body:has(.modal-backdrop, .photo-viewer, .tree-screen.is-fullscreen) {
   overflow: hidden;
 }
 @media (min-width: 750px) {

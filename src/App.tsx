@@ -1233,7 +1233,7 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
     try { await treeScreenRef.current?.requestFullscreen?.(); } catch { /* Use viewport-filling mode when native fullscreen is unavailable. */ }
   }
   useEffect(() => {
-    const onChange = () => setTreeFullscreen(document.fullscreenElement === treeScreenRef.current);
+    const onChange = () => setTreeFullscreen(Boolean(treeScreenRef.current && document.fullscreenElement === treeScreenRef.current));
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setTreeFullscreen(false);
     };
@@ -1244,12 +1244,6 @@ export default function App({ readOnly = false, publicView = false }: { readOnly
       document.removeEventListener("keydown", onKey);
     };
   }, []);
-  useEffect(() => {
-    if (!treeFullscreen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, [treeFullscreen]);
   useEffect(() => {
     if (page !== "tree") {
       setTreeFullscreen(false);
